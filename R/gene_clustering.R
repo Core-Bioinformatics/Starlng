@@ -17,14 +17,20 @@ parallel_nn2_idx <- function(embedding, k) {
 
     shared_emb <- SharedObject::share(embedding)
 
-    nn_result <- foreach::foreach (i = seq_len(ncores), .inorder = TRUE, .combine = rbind) %dopar% {
+    # HACK check if there is another way to not get the `already exported variable` warning
+    nn_result <- suppressWarnings(foreach::foreach (
+        i = seq_len(ncores),
+        .inorder = TRUE,
+        .combine = rbind,
+        .export = c("shared_emb", "chunks", "k")
+    ) %dopar% {
         RANN::nn2(
             data = shared_emb,
             query = shared_emb[chunks[[i]], , drop = FALSE],
             k = k,
             eps = 0
         )$nn.idx
-    }
+    })
 
     shared_emb <- SharedObject::unshare(shared_emb)
 
@@ -176,7 +182,6 @@ clustering_pipeline <- function(embedding,
         gc()
         rownames(nn_adj_matrix) <- point_names
         colnames(nn_adj_matrix) <- point_names
-        print(n_neigh)
 
         clusters_list[[as.character(n_neigh)]] <- community_detection_master(
             adj_object = nn_adj_matrix,
@@ -191,4 +196,60 @@ clustering_pipeline <- function(embedding,
     }
 
     return(clusters_list)
+}
+
+group_by_clusters_general <- function(clustering_list, start_level = 1) {
+    if (start_level > 1) {
+        if (is.null(names(clustering_list))) {
+            stop(paste0("The list doesn't have as much levels as specified (", start_level, ")"))
+        }
+
+        for (sublist in names(clustering_list)) {
+            clustering_list[[sublist]] <- group_by_clusters_general(clustering_list[[sublist]], start_level - 1)
+        }
+
+        return(clustering_list)
+    }
+
+    by_cluster_list <- list()
+    if (is.null(names(clustering_list))) {
+        for (mb in clustering_list) {
+            k_value <- length(unique(mb))
+            if (!k_value %in% names(by_cluster_list)) {
+                by_cluster_list[[as.character(k_value)]] <- list(mb)
+            } else {
+                by_cluster_list[[as.character(k_value)]] <- c(by_cluster_list[[as.character(k_value)]], list(mb))
+            }
+        }
+        
+        return(by_cluster_list)
+    }
+
+    for (sublist in names(clustering_list)) {
+        by_cluster_sublist <- group_by_clusters_general(clustering_list[[sublist]], start_level)
+
+        for (k_value in names(by_cluster_sublist)) {
+            if (!k_value %in% names(by_cluster_list)) {
+                by_cluster_list[[k_value]] <- by_cluster_sublist[[k_value]]
+            } else {
+                by_cluster_list[[k_value]] <- c(by_cluster_list[[k_value]], by_cluster_sublist[[k_value]])
+            }
+        }
+    }
+
+    k_values <- names(by_cluster_list)
+    k_values <- stringr::str_sort(k_values, numeric = TRUE)
+    by_cluster_list <- by_cluster_list[k_values]
+
+    return(by_cluster_list)
+}
+
+assess_stability_by_clusters <- function(by_cluster_list, order_logic = "agreement") {
+    k_values <- names(by_cluster_list)
+    foreach::foreach (
+        k_list = by_cluster_list,
+        .final = function(x) setNames(x, k_values)
+    ) %dopar% { 
+        ClustAssess::merge_partitions(k_list, order_logic = order_logic)
+    }
 }
