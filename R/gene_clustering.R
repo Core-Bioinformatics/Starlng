@@ -1,3 +1,5 @@
+#' @importFrom foreach %dopar% %do% %:%
+#' @importFrom doFuture %dofuture%
 
 parallel_nn2_idx <- function(embedding, k) {
     ncores <- foreach::getDoParWorkers()
@@ -7,13 +9,15 @@ parallel_nn2_idx <- function(embedding, k) {
     }
 
     chunk_size <- nrow(embedding) %/% ncores
-    chunks <- suppressWarnings(
-        split(seq_len(nrow(embedding)), rep(seq_len(ncores), each = chunk_size))
-    )
+    chunks <- split(seq_len(chunk_size * ncores), rep(seq_len(ncores), each = chunk_size))
+
+    if (chunk_size * ncores != nrow(embedding)) {
+        chunks[[ncores]] <- c(chunks[[ncores]], (chunk_size * ncores + 1):nrow(embedding))
+    }
 
     shared_emb <- SharedObject::share(embedding)
 
-    nn_result <- foreach(i = seq_len(ncores)) %dopar% {
+    nn_result <- foreach::foreach (i = seq_len(ncores), .inorder = TRUE, .combine = rbind) %dopar% {
         RANN::nn2(
             data = shared_emb,
             query = shared_emb[chunks[[i]], , drop = FALSE],
@@ -24,29 +28,49 @@ parallel_nn2_idx <- function(embedding, k) {
 
     shared_emb <- SharedObject::unshare(shared_emb)
 
-    return(do.call(rbind, nn_result))
+    nn_result
 }
 
-process_shared_adj_object_clustering <- function(shared_adj_object, graph_type) {
-    ncores <- foreach::getDoParWorkers()
-    if (ncores == 1) {
-        return(shared_adj_object)
+build_adj_from_idx <- function(nn_idx, k, graph_type = "snn", prune_value = -1) {
+    nn_adj_matrix <- ClustAssess::getNNmatrix(nn_idx, k, 0, prune_value)
+
+    if (graph_type == "nn") {
+        return(nn_adj_matrix$nn)
     }
 
-    # if it's parallel, the object is an adjacency matrix
-    # that should be converted to an igraph
+    if (prune_value >= 0) {
+        return(nn_adj_matrix$snn)
+    }
+
+    return(ClustAssess::get_highest_prune_param(
+        nn_adj_matrix$nn,
+        k
+    )$adj_matrix)
+}
+
+build_ig_from_adj <- function(adj_matrix, graph_type = "snn") {
     if (graph_type == "snn") {
         return(igraph::graph_from_adjacency_matrix(
-            adjmatrix = shared_adj_object,
+            adjmatrix = adj_matrix,
             mode = "undirected",
             weighted = TRUE
         ))
     }
 
     return(igraph::graph_from_adjacency_matrix(
-        adjmatrix = shared_adj_object,
+        adjmatrix = adj_matrix,
         mode = "directed"
     ))
+}
+
+preproc_shared_adj_obj <- function(shared_adj_object, graph_type) {
+    if (igraph::is_igraph(shared_adj_object)) {
+        return(shared_adj_object)
+    }
+
+    # if it's parallel, the object is an adjacency matrix
+    # that should be converted to an igraph
+    build_ig_from_adj(shared_adj_object, graph_type)
 }
 
 community_detection_worker <- function(shared_adj_object,
@@ -55,7 +79,7 @@ community_detection_worker <- function(shared_adj_object,
                                        quality_function,
                                        number_interations,
                                        seed) {
-    g <- process_shared_adj_object_clustering(shared_adj_object, graph_type)
+    g <- preproc_shared_adj_obj(shared_adj_object, graph_type)
 
     mb <- leidenbase::leiden_find_partition(
         igraph = g,
@@ -75,53 +99,52 @@ community_detection_master <- function(adj_object,
                                        number_interations,
                                        seeds,
                                        graph_type = "snn",
-                                       vars_to_exclude) {
+                                       memory_log_file = NULL) {
     ncores <- foreach::getDoParWorkers()
     if (ncores > 1) {
         shared_adj_object <- SharedObject::share(adj_object)
     } else {
-        if (graph_type == "snn") {
-            shared_adj_object <- igraph::graph_from_adjacency_matrix(
-                adjmatrix = adj_object,
-                mode = "undirected",
-                weighted = TRUE
-            )
-        } else {
-            shared_adj_object <- igraph::graph_from_adjacency_matrix(
-                adjmatrix = adj_object,
-                mode = "directed"
-            )
-        }
+        shared_adj_object <- build_ig_from_adj(adj_object, graph_type)
     }
 
-    clusters_list <- foreach::foreach(
-        qfunc = quality_functions,
+    used_functions <- c("community_detection_worker")
+    used_objects <- c("shared_adj_object", "graph_type", "seeds", "resolutions", "quality_functions")
+
+    # NOTE I've used indices instead of actual values to make the transition easier
+    # in case doRNG might need to be used; for now, the results seem to be consistent
+    # TODO investigate the use of dofuture, whether it will help optimising the code
+    clusters_list <- suppressWarnings(foreach::foreach(
+        i_qfunc = seq_along(quality_functions),
         .inorder = TRUE,
         .final = function(x) setNames(x, quality_functions)
     ) %:%
     foreach::foreach(
-        res = resolutions,
+        i_res = seq_along(resolutions),
         .inorder = TRUE,
         .final = function(x) setNames(x, as.character(resolutions))
     ) %:%
     foreach::foreach(
-        seed = seeds,
+        i_seed = seq_along(seeds),
+        .export = c(used_objects, used_functions),
+        .packages = c("Starlng", "SharedObject"),
         .inorder = FALSE
-    ) %do% {
-        community_detection_worker(
+    ) %dopar% {
+        worker_res <- community_detection_worker(
             shared_adj_object = shared_adj_object,
             graph_type = graph_type,
-            resolution = res,
-            quality_function = qfunc,
+            resolution = resolutions[[i_res]],
+            quality_function = quality_functions[[i_qfunc]],
             number_interations = number_interations,
-            seed = seed
+            seed = seeds[[i_seed]]
         )
-    }
+
+        worker_res
+    })
 
     if (ncores > 1) {
         shared_adj_object <- SharedObject::unshare(shared_adj_object)
     }
-    
+
     return(clusters_list)
 }
 
@@ -133,7 +156,11 @@ clustering_pipeline <- function(embedding,
                                 quality_functions = c("RBConfigurationVertexPartition"),
                                 number_interations = 5,
                                 seeds = NULL,
-                                number_repetitions = 30) {
+                                number_repetitions = 30,
+                                memory_log_file = NULL) {
+    # TODO add progress bar
+    # TODO check if it's worth to add the option of memory logging
+    # TODO check if the nested foreach don't add overhead and if there are other better ways to do it
     if (is.null(seeds)) {
         seeds <- seq(from = 1, by = 100, length.out = number_repetitions)
     }
@@ -141,27 +168,15 @@ clustering_pipeline <- function(embedding,
     point_names <- rownames(embedding)
     n_neighbours <- sort(unique(n_neighbours), decreasing = TRUE)
     nn_idx <- parallel_nn2_idx(embedding, k = n_neighbours[1])
-    # clear_psock_memory()
 
     clusters_list <- list()
     for (n_neigh in n_neighbours) {
-        nn_adj_matrix <- ClustAssess::getNNmatrix(nn_idx, n_neigh, 0, prune_value)
-
-        if (graph_type == "snn") {
-            if (prune_value == -1) {
-                nn_adj_matrix <- ClustAssess::get_highest_prune_param(
-                    nn_adj_matrix$nn,
-                    n_neigh
-                )$adj_matrix
-            } else {
-                nn_adj_matrix <- nn_adj_matrix$snn
-            }
-        } else {
-            nn_adj_matrix <- nn_adj_matrix$nn
-        }
+        # TODO check if you can build the adj matrix based on the previous one by deelting some neighbours
+        nn_adj_matrix <- build_adj_from_idx(nn_idx, n_neigh, graph_type, prune_value)
         gc()
         rownames(nn_adj_matrix) <- point_names
         colnames(nn_adj_matrix) <- point_names
+        print(n_neigh)
 
         clusters_list[[as.character(n_neigh)]] <- community_detection_master(
             adj_object = nn_adj_matrix,
@@ -169,8 +184,10 @@ clustering_pipeline <- function(embedding,
             quality_functions = quality_functions,
             number_interations = number_interations,
             seeds = seeds,
-            graph_type = graph_type
+            graph_type = graph_type,
+            memory_log_file = memory_log_file
         )
+        clear_psock_memory()
     }
 
     return(clusters_list)
