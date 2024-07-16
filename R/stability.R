@@ -82,8 +82,6 @@ get_all_configurations <- function(grouped_by_k_list,
                                    sep_char = ";",
                                    first_summary_function = median,
                                    second_summary_function = function(x) { quantile(x, 0.75) - quantile(x, 0.25) }) {
-    k_values <- names(grouped_by_k_list$k)
-
     sublist_names <- names(grouped_by_k_list)
 
     if ("overall_ecc" %in% sublist_names) {
