@@ -38,13 +38,18 @@ subset_monocle_by_trajectory <- function(mon_obj, start_cells = NULL, end_cells 
         colnames(cells_between_end)
     )
 
+    all_vertices_between <- union(
+        igraph::vertex_attr(cells_between_end@principal_graph$UMAP, "name"),
+        igraph::vertex_attr(cells_between_start@principal_graph$UMAP, "name")
+    )
+
     mon_obj <- mon_obj[, all_cells_between]
     gc()
 
     # update the principal graph
     monocle3::principal_graph(mon_obj)$UMAP <- igraph::induced_subgraph(
         monocle3::principal_graph(mon_obj)$UMAP,
-        all_cells_between
+        all_vertices_between
     )
 
     # refactor the metadata
@@ -100,10 +105,7 @@ custom_learn_graph <- function(mon_obj,
     }
 
     if (!is.null(metadata_for_nodes)) {
-        mon_obj@clusters@listData$UMAP$partitions <- setNames(factor(as.numeric(mon_obj@colData[[metadata_for_nodes]])), colnames(mon_obj))
-        levels(mon_obj@clusters@listData$UMAP$partitions) <- seq_len(nlevels(mon_obj@clusters@listData$UMAP$partitions))
-        mon_obj@clusters@listData$UMAP$clusters <- setNames(factor(as.numeric(mon_obj@colData[[metadata_for_nodes]])), colnames(mon_obj))
-        levels(mon_obj@clusters@listData$UMAP$clusters) <- seq_len(nlevels(mon_obj@clusters@listData$UMAP$clusters))
+        mon_obj <- update_mononcle_partition(mon_obj, mon_obj@colData[[metadata_for_nodes]])
     }
 
     if (use_partition) {
@@ -119,6 +121,42 @@ custom_learn_graph <- function(mon_obj,
         learn_graph_control = learn_graph_controls,
         verbose = verbose
     ))
+}
+
+custom_pseudotime_ordering <- function(monocle_object,
+                                       start_cells = NULL,
+                                       end_cells = NULL) {
+
+    if (is.null(start_cells) && is.null(end_cells)) {
+        stop("Both start and end cells cannot be NULL")
+    }
+
+    is_reverse <- FALSE
+    if (is.null(start_cells)) {
+        start_cells <- end_cells
+        end_cells <- NULL
+        is_reverse <- TRUE
+    }
+
+    if (!is.null(end_cells)) {
+        temp_mon_obj <- subset_monocle_by_trajectory(monocle_object, start_cells, end_cells)
+        temp_mon_obj <- monocle3::order_cells(temp_mon_obj, root_cells = start_cells)
+
+        psd_values <- monocle3::pseudotime(temp_mon_obj)
+    } else {
+        monocle_object <- monocle3::order_cells(monocle_object, root_cells = start_cells)
+        psd_values <- monocle3::pseudotime(monocle_object)
+    }
+
+    if (is_reverse) {
+        psd_values <- max(psd_values) - psd_values
+    }
+
+    entire_psd <- rep(NA, ncol(monocle_object))
+    names(entire_psd) <- colnames(monocle_object)
+    entire_psd[names(psd_values)] <- psd_values
+
+    return(entire_psd)
 }
 
 update_mononcle_partition <- function(mon_obj, new_partition) {
