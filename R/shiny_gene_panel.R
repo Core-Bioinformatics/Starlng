@@ -122,9 +122,18 @@ server_gene_umap_panel <- function(id) {
                             paste(input$filename_umap, tolower(input$filetype_umap), sep = ".")
                         },
                         content = function(file) {
+                            gplot_obj <- umap_ggplot()
+                            is_discrete <- input$summarise_expr == "binary"
+                            if (!is_discrete) {
+                                gplot_obj <- gplot_obj +
+                                    ggplot2::guides(colour = ggplot2::guide_colourbar(
+                                        barwidth = grid::unit(input$width_umap / 1.5, "inches")
+                                    ))
+                            }
+
                             ggplot2::ggsave(
                                 filename = file,
-                                plot = umap_ggplot(),
+                                plot = gplot_obj,
                                 width = input$width_umap,
                                 height = input$height_umap
                             )
