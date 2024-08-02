@@ -20,7 +20,7 @@ voting_scheme <- function(expression_matrix,
         colnames(expression_matrix) <- seq_len(ncol(expression_matrix))
     }
 
-    expression_matrix <- expression_matrix[genes, ]
+    expression_matrix <- expression_matrix[genes, , drop = FALSE]
     n_coexpressed_thresh <- max(min(n_coexpressed_thresh, nrow(expression_matrix)), 1)
 
     if (thresh_percentile > 0) {
@@ -34,8 +34,7 @@ voting_scheme <- function(expression_matrix,
     }
 
     mask_expressed <- expression_matrix > thresh_value
-    index_cells <- which(colSums(mask_expressed) >= n_coexpressed_thresh)
-
+    index_cells <- colSums(mask_expressed) >= n_coexpressed_thresh
     if (is.null(summary_function)) {
         cell_info <- rep("not selected", ncol(expression_matrix))
         cell_info[index_cells] <- "selected"
@@ -44,11 +43,20 @@ voting_scheme <- function(expression_matrix,
         return(factor(cell_info))
     }
 
+    # if (length(genes) == 1) {
+    #     # cell_info <- expression_matrix[1, ]
+    #     cell_info <- rep(0, length(index_cells))
+    #     cell_info[index_cells] <- summary_function(expression_matrix[1, index_cells])
+    #     # cell_info[!index_cells] <- 0
+
+    #     return(cell_info)
+    # }
+
+    index_cells <- which(index_cells)
     cell_info <- rep(0, ncol(expression_matrix))
     cell_info[index_cells] <- sapply(index_cells, function(cell_index) {
-        non_zero_values <- expression_matrix[, cell_index]
-        non_zero_values <- non_zero_values[non_zero_values > 0]
-        return(summary_function(non_zero_values))
+        cell_values <- expression_matrix[, cell_index]
+        return(summary_function(cell_values))
     })
     names(cell_info) <- colnames(expression_matrix)
 
@@ -90,6 +98,7 @@ select_cells_by_gene_expr <- function(expression_matrix,
     return(names(voting_scheme_results)[index_cells])
 }
 
+# metadata combinations is a list metadata column - metadata unique values
 select_cells_by_metadata <- function(metadata_df, metadata_combinations) {
     mtd_names <- intersect(names(metadata_combinations), colnames(metadata_df))
 
