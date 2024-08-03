@@ -9,16 +9,39 @@ License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
     license
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 Imports:
+    circlize,
     ClustAssess,
+    ComplexHeatmap,
+    doFuture,
+    dplyr,
+    DT,
     foreach,
+    ggplot2,
+    Gmedian,
+    gprofiler2,
     igraph,
     leidenbase,
+    Matrix (>= 1.5.0),
     monocle3,
-    RANN
+    patchwork,
+    plotly,
+    qs,
+    qualpalr,
+    RANN,
+    rlang,
+    SharedObject,
+    shiny,
+    shinyjs,
+    shinyWidgets,
+    spsComps,
+    stringr,
+    viridis
 Suggests: 
+    doParallel,
     testthat (>= 3.0.0)
-biocVewis:
-    SharedObject
+biocViews:
+    SharedObject,
+    rhdf5
 Config/testthat/edition: 3
