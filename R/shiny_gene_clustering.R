@@ -188,7 +188,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                     graph_type = tolower(input$graph_type),
                     resolutions = seq(from = input$res_start, to = input$res_stop, by = input$res_step),
                     quality_functions = paste0(input$qfunc, "VertexPartition"),
-                    number_interations = input$n_iterations,
+                    number_iterations = input$n_iterations,
                     number_repetitions = input$n_seeds
                 ), 3)
 

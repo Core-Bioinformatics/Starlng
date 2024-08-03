@@ -83,9 +83,9 @@ prepare_session <- function(reactive_dim, height_ratio = 0.6) {
     }
     assign("mon_obj", qs::qread(mon_obj_path, nthreads = 1), envir = env)
 
-    colors_path <- file.path("objects", "colors.qs")
+    colors_path <- file.path("objects", "colours.qs")
     if (!file.exists(colors_path)) {
-        stop("`objects/unique_colors.qs` file not found")
+        stop("`objects/colours.qs` file not found")
     }
     assign("color_options", qs::qread(colors_path, nthreads = 1), envir = env)
 
@@ -95,9 +95,9 @@ prepare_session <- function(reactive_dim, height_ratio = 0.6) {
     }
     assign("trajectory_gplot", qs::qread(traj_path, nthreads = 1), envir = env)
 
-    moran_path <- file.path("objects", "graph_test.csv")
+    moran_path <- file.path("objects", "genes_info.csv")
     if (!file.exists(moran_path)) {
-        stop("`objects/graph_test.csv` file not found")
+        stop("`objects/genes_info.csv` file not found")
     }
     assign("moran_df", read.csv(moran_path, row.names = 1), envir = env)
 
