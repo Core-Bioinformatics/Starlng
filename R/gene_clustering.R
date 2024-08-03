@@ -48,10 +48,12 @@ build_adj_from_idx <- function(nn_idx, k, graph_type = "snn", prune_value = -1) 
         return(nn_adj_matrix$snn)
     }
 
-    return(ClustAssess::get_highest_prune_param(
+    prune_result <- ClustAssess::get_highest_prune_param(
         nn_adj_matrix$nn,
         k
-    )$adj_matrix)
+    )
+
+    return(prune_result$adj_matrix)
 }
 
 build_ig_from_adj <- function(adj_matrix, graph_type = "snn") {
@@ -83,7 +85,7 @@ community_detection_worker <- function(shared_adj_object,
                                        graph_type,
                                        resolution,
                                        quality_function,
-                                       number_interations,
+                                       number_iterations,
                                        seed) {
     g <- preproc_shared_adj_obj(shared_adj_object, graph_type)
 
@@ -92,7 +94,7 @@ community_detection_worker <- function(shared_adj_object,
         edge_weights = igraph::E(g)$weight,
         resolution_parameter = resolution,
         partition_type = quality_function,
-        num_iter = number_interations,
+        num_iter = number_iterations,
         seed = seed,
         verbose = FALSE
     )
@@ -102,7 +104,7 @@ community_detection_worker <- function(shared_adj_object,
 community_detection_master <- function(adj_object,
                                        resolutions,
                                        quality_functions,
-                                       number_interations,
+                                       number_iterations,
                                        seeds,
                                        graph_type = "snn",
                                        memory_log_file = NULL) {
@@ -140,7 +142,7 @@ community_detection_master <- function(adj_object,
             graph_type = graph_type,
             resolution = resolutions[[i_res]],
             quality_function = quality_functions[[i_qfunc]],
-            number_interations = number_interations,
+            number_iterations = number_iterations,
             seed = seeds[[i_seed]]
         )
 
@@ -160,9 +162,10 @@ clustering_pipeline <- function(embedding,
                                 prune_value = -1,
                                 resolutions = seq(from = 0.1, to = 1, by = 0.1),
                                 quality_functions = c("RBConfigurationVertexPartition"),
-                                number_interations = 5,
+                                number_iterations = 5,
                                 seeds = NULL,
                                 number_repetitions = 30,
+                                merge_identical_partitions = FALSE,
                                 memory_log_file = NULL) {
     # TODO add progress bar
     # TODO check if it's worth to add the option of memory logging
@@ -187,13 +190,18 @@ clustering_pipeline <- function(embedding,
             adj_object = nn_adj_matrix,
             resolutions = resolutions,
             quality_functions = quality_functions,
-            number_interations = number_interations,
+            number_iterations = number_iterations,
             seeds = seeds,
             graph_type = graph_type,
             memory_log_file = memory_log_file
         )
-        clear_psock_memory()
+        # clear_psock_memory()
     }
 
-    return(clusters_list)
+    if (!merge_identical_partitions) {
+        return(clusters_list)
+    }
+
+    clusters_list <- group_by_clusters_general(clusters_list, 3)
+    return(get_clusters_consistency(clusters_list))
 }
