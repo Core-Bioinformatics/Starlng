@@ -1,9 +1,14 @@
 
 # assumes that the expr matrix is gene x cell
 # assumes that the genes have been already filtered i.e only the genes that are meant to be used are present
+#' @export
 get_feature_loading <- function(expr_matrix, npcs = 30) {
+    transpose_f <- base::t
+    if (inherits(expr_matrix, "dgCMatrix")) {
+        transpose_f <- Matrix::t
+    }
     prcomp(
-        t(expr_matrix),
+        transpose_f(expr_matrix),
         center = TRUE,
         scale = TRUE,
         rank. = npcs,
