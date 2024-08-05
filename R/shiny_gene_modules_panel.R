@@ -1,6 +1,18 @@
 #' @importFrom dplyr %>% .data
+NULL
 
 ###### UI ######
+#' UI - Gene Module UMAP
+#'
+#' @description Creates the UI interface for the Gene Module UMAP panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 ui_module_umap <- function(id) {
     ns <- shiny::NS(id)
 
@@ -8,7 +20,7 @@ ui_module_umap <- function(id) {
         shiny::h2("Visualisation of module expression", id = "gene_modules_panel"),
         shiny::splitLayout(
             cellWidths = "40px",
-            gear_umaps(ns, "settings", "highest"),
+            gear_umaps(ns, "settings", "highest", TRUE, TRUE),
             gear_download(ns, "module_umap", "modules")
         ),
         shiny::fluidRow(
@@ -32,6 +44,17 @@ ui_module_umap <- function(id) {
 }
 
 ###### SERVER ######
+#' Server - Gene Module UMAP
+#'
+#' @description Creates the backend interface for the Gene Module UMAP panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 server_module_umap <- function(id) {
     shiny::moduleServer(
         id,

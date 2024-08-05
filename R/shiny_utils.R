@@ -6,7 +6,7 @@ save_filetypes <- list(
     "SVG" = svg
 )
 
-gear_umaps <- function(ns, id, default_order = "default", contains_continuous = TRUE) {
+gear_umaps <- function(ns, id, default_order = "default", contains_continuous = TRUE, scale_default = FALSE) {
     shinyWidgets::dropdownButton(
         inputId = ns(paste0(id, "_gear_umap")),
         shiny::splitLayout(
@@ -66,7 +66,7 @@ gear_umaps <- function(ns, id, default_order = "default", contains_continuous = 
                         label = "Scale values to 0-1",
                         status = "success",
                         width = "50%",
-                        value = FALSE,
+                        value = scale_default,
                         fill = TRUE
                     ),
                 ),
