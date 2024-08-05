@@ -421,7 +421,7 @@ generate_cell_heatmap <- function(expression_matrix,
             dplyr::arrange(.data$pseudotime)
         psd <- metadata_df$pseudotime
         ordered_cells <- rownames(metadata_df)
-        expression_matrix <- expression_matrix[ , ordered_cells]
+        expression_matrix <- expression_matrix[ , ordered_cells, drop = FALSE]
     }
 
     if (k_smooth > 0) {

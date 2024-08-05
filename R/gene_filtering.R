@@ -6,7 +6,7 @@ sort_genes_by_metadata <- function(expression_matrix,
                                    thresh_value = 0,
                                    decreasing = FALSE) {
     gene_summary_values <- sapply(rownames(expression_matrix), function(gene) {
-        gene_values <- expression_matrix[gene, ]
+        gene_values <- expression_matrix[gene, , drop = FALSE]
 
         if (thresh_percentile > 0) {
             thresh_value <- quantile(gene_values, probs = thresh_percentile)
