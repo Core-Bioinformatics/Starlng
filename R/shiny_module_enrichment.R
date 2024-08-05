@@ -1,6 +1,19 @@
 #' @importFrom dplyr %>% .data
+NULL
 
 ###### UI ######
+
+#' UI - Module Enrichment
+#'
+#' @description Creates the UI interface for the Module Enrichment panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 ui_module_enrichment <- function(id) {
     ns <- shiny::NS(id)
 
@@ -51,6 +64,17 @@ ui_module_enrichment <- function(id) {
 }
 
 ###### SERVER ######
+#' Server - Module Enrichment
+#'
+#' @description Creates the backend interface for the Module Enrichment panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 server_module_enrichment <- function(id) {
     shiny::moduleServer(
         id,
