@@ -1,6 +1,19 @@
 #' @importFrom dplyr %>% .data
+NULL
 
 ###### UI ######
+
+#' UI - Gene clustering
+#'
+#' @description Creates the UI interface for the Gene Clustering panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 ui_gene_clustering <- function(id) {
     ns <- shiny::NS(id)
 
@@ -129,12 +142,25 @@ ui_gene_clustering <- function(id) {
                 )
             ),
             shiny::column(3)
-        )
-
+        ),
+        shiny::div(class = "empty-space")
     )
 }
 
 ###### SERVER ######
+#' Server - Gene clustering
+#'
+#' @description Creates the backend interface for the Gene Clustering panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#' @param filtered_genes A reactive expression that contains the filtered genes
+#' that will be used for the clustering.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 server_gene_clustering <- function(id, filtered_genes) {
     shiny::moduleServer(
         id,
@@ -173,6 +199,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                 shinyjs::disable("run_clustering")
                 shinyjs::hide("ecc_threshold")
                 shinyjs::hide("freq_threshold")
+
                 print(Sys.time())
                 cl_result <- group_by_clusters_general(clustering_pipeline(
                     # TODO change this after you reach a conclusion about the best option for the input matrix
@@ -346,14 +373,9 @@ server_gene_clustering <- function(id, filtered_genes) {
                 )
 
                 shiny::isolate({
-                    output[[paste0(input$tabset, "_gene_clusters")]] <- DT::renderDataTable(
-                        DT::datatable(
-                            clust_df[[input$tabset]](),
-                            filter = "top"
-                        )
-                    )
+                    
 
-                    module_options <- colnames(clust_df[[input$tabset]]())
+                    module_options <- c("-", colnames(clust_df[[input$tabset]]()))
                     shiny::updateSelectInput(
                         session,
                         inputId = "gene_clusters_options",
@@ -361,27 +383,44 @@ server_gene_clustering <- function(id, filtered_genes) {
                         selected = module_options[1]
                     )
 
+                  
+                })
+            })
+
+            shiny::observe({
+                shinyjs::disable("select_module")
+
+                shiny::req(input$gene_clusters_options)
+                shiny::req(input$tabset %in% names(clust_df))
+                module_options <- input$gene_clusters_options
+                shiny::req(length(colnames(clust_df[[input$tabset]]())) > 0)
+
+                shiny::isolate({
+                    if (module_options != "-") {
+                        shinyjs::enable("select_module")
+                    } else {
+                        module_options <- colnames(clust_df[[input$tabset]]())
+                    }
+                    shiny::req(all(module_options %in% colnames(clust_df[[input$tabset]]())))
+
+                    df <- clust_df[[input$tabset]]()[ , module_options, drop = FALSE]
+                    df <- cbind(env$moran_df[rownames(df), ], df)
+                    output[[paste0(input$tabset, "_gene_clusters")]] <- DT::renderDataTable(
+                        DT::datatable(
+                            df,
+                            filter = "top"
+                        )
+                    )
+
                     output$download_gene_clusters <- shiny::downloadHandler(
                         filename = function() {
                             paste0(input$tabset, "_gene_clusters.csv")
                         },
                         content = function(file) {
-                            write.csv(clust_df[[input$tabset]](), file, row.names = TRUE)
+                            write.csv(df, file, row.names = TRUE)
                         }
                     )
                 })
-            })
-
-            shiny::observe({
-                shinyjs::disable("gene_clusters_options")
-                shinyjs::disable("select_module")
-
-                shiny::req(input$gene_clusters_options)
-                shiny::req(input$tabset %in% names(clust_df))
-                shiny::req(all(input$gene_clusters_options %in% colnames(clust_df[[input$tabset]]())))
-
-                shinyjs::enable("select_module")
-                shinyjs::enable("gene_clusters_options")
             })
 
             shiny::observe({
