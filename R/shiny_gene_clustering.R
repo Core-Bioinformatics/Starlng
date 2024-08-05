@@ -163,7 +163,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                 shiny::isolate({
                     output$clustering_info <- shiny::renderText({
                         paste0(
-                            "Performing clustering on ", length(filtered_genes()), " genes. Modify the filters in the Gene information table section to increase / decrease the number of genes."
+                            "Performing clustering on ", length(filtered_genes()), " genes. Modify the filters in the Gene Table section to increase / decrease the number of genes."
                         )
                     })
                 })
