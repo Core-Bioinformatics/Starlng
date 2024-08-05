@@ -1,4 +1,5 @@
 #' @importFrom dplyr %>% .data
+NULL
 
 ###### UI ######
 ui_gene_umap_panel <- function(id) {
@@ -50,6 +51,17 @@ ui_gene_umap_panel <- function(id) {
     )
 }
 
+#' UI - Gene UMAP
+#'
+#' @description Creates the UI interface for the Gene UMAP panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 ui_gene_umap <- function(id) {
     ns <- shiny::NS(id)
 
@@ -146,6 +158,17 @@ server_gene_umap_panel <- function(id) {
     )
 }
 
+#' Server - Gene UMAP
+#'
+#' @description Creates the backend interface for the Gene UMAP panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 server_gene_umap <- function(id) {
     shiny::moduleServer(
         id,

@@ -1,6 +1,15 @@
 env <- new.env(parent = emptyenv())
 
 ###### UI ######
+#' UI - Global Settings
+#'
+#' @description Creates the UI elements with the global settings for the UI
+#' components inside Starlng Shiny application.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 ui_global_setttings <- function() {
     shiny::tagList(
         shiny::tags$style(
@@ -16,6 +25,9 @@ ui_global_setttings <- function() {
                 }",
                 ".btn-danger {
                     font-size: 20px;
+                }",
+                ".empty-space {
+                    margin-bottom: 200px;
                 }"
             )
         ),
@@ -54,7 +66,22 @@ ui_global_setttings <- function() {
 }
 
 ###### SERVER ######
-prepare_session <- function(reactive_dim, height_ratio = 0.6) {
+#' Server - Prepare Session
+#'
+#' @description Creates the backend interface that initializes the variables
+#' and the environment used inside the Starlng Shiny application.
+#'
+#' @param reactive_dim A reactive variable that returns the dimensions of the
+#' browser window. This reactive variable is used to update the dimensions of
+#' the plots inside the Shiny app.
+#' @param height_ratio Variable indicating the ratio between the height of the
+#' plots and the height of the browser window.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
+prepare_session <- function(reactive_dim, height_ratio = 0.7) {
     # NOTE can we put this as a setting for the user to set in the app?
     assign("height_ratio", height_ratio, envir = env)
     assign("window_dim", reactive_dim, envir = env)
@@ -124,6 +151,17 @@ prepare_session <- function(reactive_dim, height_ratio = 0.6) {
     assign("organism", "hsapiens", envir = env)
 }
 
+#' Server - Gear Width
+#'
+#' @description Creates the backend interface that dynamically updates the
+#' width of the gear settings window inside the Starlng Shiny application.
+#'
+#' @param session The shiny session object used to update the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 update_gears_width <- function(session) {
     shiny::observe({
         win_dims <- env$window_dim()
@@ -135,6 +173,18 @@ update_gears_width <- function(session) {
     })
 }
 
+#' Server - Tabs update
+#'
+#' @description Creates the backend interface that dynamically shows the gene
+#' module tabs inside the Starlng Shiny application after running the gene
+#' clustering.
+#'
+#' @param session The shiny session object used to update the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 update_tabs <- function(session) {
     shiny::observe({
         shinyjs::disable("module_enrichment")

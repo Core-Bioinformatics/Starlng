@@ -1,4 +1,5 @@
 #' @importFrom dplyr %>% .data
+NULL
 
 ###### UI ######
 ui_cell_select_filter <- function(id) {
@@ -112,6 +113,17 @@ ui_pseudotime_select_cells_panel <- function(id) {
     )
 }
 
+#' UI - Pseudotime
+#'
+#' @description Creates the UI interface for the Pseudotime panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 ui_pseudotime_select_cells <- function(id) {
     ns <- shiny::NS(id)
 
@@ -393,6 +405,17 @@ server_pseudotime_select_cells_panel <- function(id) {
     )
 }
 
+#' Server - Pseudotime
+#'
+#' @description Creates the backend interface for the Pseudotime panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 server_pseudotime_select_cells <- function(id) {
     shiny::moduleServer(
         id,
