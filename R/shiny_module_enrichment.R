@@ -34,7 +34,7 @@ ui_module_enrichment <- function(id) {
                 ),
             )),
             shiny::column(2, shinyWidgets::pickerInput(
-                inputId = ns("sources"),
+                inputId = ns("enrichment_sources"),
                 label = "Select data sources",
                 choices = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "REAC", "TF", "MIRNA", "CORUM", "HP", "HPA", "WP"),
                 selected = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "REAC", "TF", "MIRNA"),
@@ -135,7 +135,8 @@ server_module_enrichment <- function(id) {
                         shiny::req(!is.null(gprof_result()))
                         df <- gprof_result()$result
                         df <- df[, 3:(ncol(df) - 2)]
-                        return(df)
+                        df$source <- factor(df$source)
+                        return(DT::datatable(df, filter = "top"))
                     })
 
                     output$enrichment_plot <- plotly::renderPlotly({
