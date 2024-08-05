@@ -1,5 +1,4 @@
-#' @importFrom rlang .data
-#' @importFrom dplyr %>%
+#' @importFrom dplyr %>% .data
 voting_scheme <- function(expression_matrix,
                           genes,
                           thresh_percentile = 0.25,
@@ -43,22 +42,17 @@ voting_scheme <- function(expression_matrix,
         return(factor(cell_info))
     }
 
-    # if (length(genes) == 1) {
-    #     # cell_info <- expression_matrix[1, ]
-    #     cell_info <- rep(0, length(index_cells))
-    #     cell_info[index_cells] <- summary_function(expression_matrix[1, index_cells])
-    #     # cell_info[!index_cells] <- 0
-
-    #     return(cell_info)
-    # }
-
     index_cells <- which(index_cells)
     cell_info <- rep(0, ncol(expression_matrix))
+    names(cell_info) <- colnames(expression_matrix)
+    if (length(index_cells) == 0) {
+        return(cell_info)
+    }
+
     cell_info[index_cells] <- sapply(index_cells, function(cell_index) {
         cell_values <- expression_matrix[, cell_index]
         return(summary_function(cell_values))
     })
-    names(cell_info) <- colnames(expression_matrix)
 
     return(cell_info)
 }

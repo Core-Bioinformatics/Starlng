@@ -1,5 +1,4 @@
-#' @importFrom rlang .data
-#' @importFrom dplyr %>% 
+#' @importFrom dplyr %>% .data
 #' 
 gene_expr_palette <- c(
     "grey85", "#FFF7EC", "#FEE8C8", "#FDD49E", "#FDBB84",
@@ -144,8 +143,10 @@ plot_umap <- function(umap_embedding,
         min_val <- min(df$cell_info)
         max_val <- max(df$cell_info)
 
-        df$cell_info <- (df$cell_info - min_val) / (max_val - min_val)
-        mtd_name <- paste(mtd_name, "(scaled)")
+        if (max_val > min_val) {
+            df$cell_info <- (df$cell_info - min_val) / (max_val - min_val)
+            mtd_name <- paste(mtd_name, "(scaled)")
+        }
     }
 
     gplot_obj <- ggplot2::ggplot(df, ggplot2::aes(
