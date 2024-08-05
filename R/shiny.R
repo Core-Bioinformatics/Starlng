@@ -197,6 +197,23 @@ starlng_write_app_monocle <- function(folder_path,
     rownames(autocorr_result) <- autocorr_result$gene_short_name
     autocorr_result <- autocorr_result[, c("morans_test_statistic", "morans_I", "q_value")] %>%
         dplyr::arrange(dplyr::desc(.data$morans_I))
+    monocle_object <- monocle_object[rownames(autocorr_result), ]
+
+    chosen_slot <- "normalized_data"
+    if (!(chosen_slot %in% names(monocle_object@assays@data))) {
+        chosen_slot <- "counts"
+    }
+    expr_matrix <- monocle_object@assays@data[[chosen_slot]]
+
+    sum_function <- base::rowSums
+    if (inherits(expr_matrix, "dgCMatrix")) {
+        sum_function <- Matrix::rowSums
+    }
+    autocorr_result$average_expression <- sum_function(expr_matrix)
+    autocorr_result$n_expressed_cells <- sum_function(expr_matrix > 0)
+    autocorr_result$average_expression_nonzero <- autocorr_result$average_expression / autocorr_result$n_expressed_cells
+    autocorr_result$average_expression <- autocorr_result$average_expression / ncol(expr_matrix)
+    autocorr_result$percent_expressed_cells <- autocorr_result$n_expressed_cells / ncol(expr_matrix)
     write.csv(autocorr_result, file = info_gene_path)
 
     # trajectory ggplot object
@@ -229,11 +246,6 @@ starlng_write_app_monocle <- function(folder_path,
     mtd_df <- cbind(mtd_df, monocle_object@int_colData$reducedDims$UMAP)
     qs::qsave(mtd_df, file = metadata_path)
     
-    chosen_slot <- "normalized_data"
-    if (!(chosen_slot %in% names(monocle_object@assays@data))) {
-        chosen_slot <- "counts"
-    }
-    expr_matrix <- monocle_object@assays@data[[chosen_slot]]
     # diet monocle object
     if (verbose) print("Writing the diet monocle object...")
     mon_path <- file.path(folder_path, "digest_monocle_object.qs")
