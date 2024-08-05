@@ -1,4 +1,5 @@
 #' @importFrom dplyr %>% .data
+NULL
 
 ###### UI ######
 ui_pseudobulk_heatmap <- function(id) {
@@ -126,6 +127,17 @@ ui_by_cell_heatmap <- function(id) {
     )
 }
 
+#' UI - Gene Module Heatmap
+#'
+#' @description Creates the UI interface for the Gene Module Heatmap panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 ui_module_metadata_heatmap <- function(id) {
     ns <- shiny::NS(id)
 
@@ -297,8 +309,12 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                 })
             })
 
+            db_module_order <- shiny::reactive({
+                input$module_order
+            }) %>% shiny::debounce(1000)
+
             htmp_obj <- shiny::reactive({
-                shiny::req(input$module_order, metadata_name(), env$pseudotime_changes() > 0)
+                shiny::req(!is.null(db_module_order()), metadata_name(), env$pseudotime_changes() > 0)
                 req_gear_heatmap(session, FALSE)
 
                 # for (module_name in names(env$chosen_modules())) {
@@ -327,8 +343,9 @@ server_by_cell_heatmap <- function(id, metadata_name) {
 
                 # }
                 shiny::isolate({
-                    shiny::req(all(input$module_order %in% names(env$chosen_modules())))
-                    sub_module_list <- env$chosen_modules()[input$module_order]
+                    module_order <- db_module_order()
+                    shiny::req(all(module_order %in% names(env$chosen_modules())))
+                    sub_module_list <- env$chosen_modules()[module_order]
                     all_genes <- unlist(sub_module_list)
                     gene_matrix <- do.call(rbind,
                         lapply(
@@ -340,23 +357,23 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                                     index_genes = env$genes[module],
                                     check_intersect = FALSE
                                 )
-                                # colnames(gene_matrix) <- rownames(env$mtd_df)
-                                return(gene_matrix[sort_genes_by_metadata(
+
+                                if (length(env$genes[module]) == 1) {
+                                    gene_matrix <- matrix(gene_matrix, nrow = 1)
+                                    rownames(gene_matrix) <- module
+                                }
+                                gene_matrix <- gene_matrix[sort_genes_by_metadata(
                                     expression_matrix = gene_matrix,
                                     metadata_info = env$mtd_df$pseudotime,
                                     summary_function = function(x) { mean(x, na.rm = TRUE)},
                                     thresh_percentile = 0,
                                     thresh_value = 0
-                                ), ])
+                                ), , drop = FALSE]
+
+                                return(gene_matrix)
                             }
                         )
                     )
-                    # gene_matrix <- read_gene_from_dense_h5(
-                    #     gene_name = all_genes,
-                    #     matrix_h5_path = file.path("objects", "expression.h5"),
-                    #     index_genes = env$genes[all_genes],
-                    #     check_intersect = FALSE
-                    # )
                     colnames(gene_matrix) <- rownames(env$mtd_df)
 
                     generate_cell_heatmap(
@@ -376,7 +393,7 @@ server_by_cell_heatmap <- function(id, metadata_name) {
             }) %>% shiny::debounce(1000)
 
             shiny::observe({
-                shiny::req(htmp_obj(), env$window_dim())
+                shiny::req(!is.null(htmp_obj()), env$window_dim(), cancelOutput = TRUE)
 
                 shiny::isolate({
                     plt_height <- min(
@@ -390,16 +407,19 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                     output$by_cell_heatmap <- shiny::renderPlot(
                         height = plt_height,
                         width = plt_width,
-                        ComplexHeatmap::draw(
-                            htmp_obj(),
-                            merge_legend = TRUE
-                        )
+                        {
+                            shiny::req(!is.null(htmp_obj()), cancelOutput = TRUE)
+                            ComplexHeatmap::draw(
+                                htmp_obj(),
+                                merge_legend = TRUE
+                            )
+                        }
                     )
                 })
             })
 
             shiny::observe({
-                shiny::req(htmp_obj())
+                shiny::req(!is.null(htmp_obj()))
                 req_gear_download(session, "heatmap")
 
                 output$download_heatmap <- shiny::downloadHandler(
@@ -418,6 +438,17 @@ server_by_cell_heatmap <- function(id, metadata_name) {
     )
 }
 
+#' Server - Gene Module Heatmap
+#'
+#' @description Creates the backend interface for the Gene Module Heatmap panel
+#' inside the Starlng Shiny application.
+#'
+#' @param id The id of the shiny module, used to access the UI elements.
+#'
+#' @note This function is a shiny module function and should be used
+#' in the context of the app created using the `starlng_write_app` function.
+#'
+#' @export
 server_module_metadata_heatmap <- function(id) {
     shiny::moduleServer(
         id,
