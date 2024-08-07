@@ -104,9 +104,15 @@ prepare_session <- function(reactive_dim, height_ratio = 0.7) {
     names(discrete_mtd) <- colnames(mtd_df)[discrete_mask]
     assign("discrete_mtd", discrete_mtd, envir = env)
 
-    mon_obj_path <- file.path("objects", "digest_monocle_object.qs")
+    recommended_psd_path <- file.path("objects", "recommended_pseudotime.qs")
+    if (!file.exists(recommended_psd_path)) {
+        stop("`objects/recommended_pseudotime.qs` file not found")
+    }
+    assign("recommended_psd", qs::qread(recommended_psd_path, nthreads = 1), envir = env)
+
+    mon_obj_path <- file.path("objects", "diet_monocle_object.qs")
     if (!file.exists(mon_obj_path)) {
-        stop("`objects/digest_monocle_object.qs` file not found")
+        stop("`objects/diet_monocle_object.qs` file not found")
     }
     assign("mon_obj", qs::qread(mon_obj_path, nthreads = 1), envir = env)
 
@@ -130,7 +136,6 @@ prepare_session <- function(reactive_dim, height_ratio = 0.7) {
 
     stable_modules_path <- file.path("objects", "stable_modules.csv")
     if (file.exists(stable_modules_path)) {
-        # TODO add other gene relevant info, such as moran I, average expr etc
         pre_stable_modules <- read.csv(stable_modules_path, row.names = 1)
         for (i in colnames(pre_stable_modules)) {
             pre_stable_modules[, i] <- factor(pre_stable_modules[, i])
