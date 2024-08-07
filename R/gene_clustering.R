@@ -81,6 +81,50 @@ preproc_shared_adj_obj <- function(shared_adj_object, graph_type) {
     build_ig_from_adj(shared_adj_object, graph_type)
 }
 
+get_workers_res_index <- function(resolution_list, nseeds) {
+    first_df <- TRUE
+    seed_index <- seq_len(nseeds)
+    for (i_res in seq_along(resolution_list)) {
+        res_index <- seq_along(resolution_list[[i_res]])
+        current_df <- expand.grid(seed_index, res_index)
+        colnames(current_df) <- c("seed", "res")
+        current_df$quality_function <- i_res
+
+        if (first_df) {
+            workers_res_index <- current_df
+            first_df <- FALSE
+        } else {
+            workers_res_index <- rbind(workers_res_index, current_df)
+        }
+    }
+
+    workers_res_index <- workers_res_index[, c(3, 2, 1)]
+
+    return(workers_res_index)
+}
+
+create_hierarchy_from_master <- function(master_result, workers_res_index, resolution_list) {
+    hier_list <- list()
+
+    for (qfunc in names(resolution_list)) {
+        hier_list[[qfunc]] <- list()
+        for (res in as.character(resolution_list[[qfunc]])) {
+            hier_list[[qfunc]][[res]] <- list()
+        }
+    }
+
+    for (i in seq_len(nrow(workers_res_index))) {
+        qfunc <- names(resolution_list)[workers_res_index$quality_function[i]]
+        res <- as.character(resolution_list[[qfunc]][workers_res_index$res[i]])
+        seed <- workers_res_index$seed[i]
+
+        hier_list[[qfunc]][[res]][[seed]] <- master_result[[i]]
+    }
+
+    return(hier_list)
+}
+
+
 community_detection_worker <- function(shared_adj_object,
                                        graph_type,
                                        resolution,
@@ -115,53 +159,61 @@ community_detection_master <- function(adj_object,
         shared_adj_object <- build_ig_from_adj(adj_object, graph_type)
     }
 
+    quality_functions <- names(resolutions)
+    is_empty <- sapply(resolutions, is.null)
+    quality_functions <- quality_functions[!is_empty]
+    resolutions <- resolutions[!is_empty]
+
+    workers_indices <- get_workers_res_index(resolutions, length(seeds))
+
     used_functions <- c("community_detection_worker")
     used_objects <- c("shared_adj_object", "graph_type", "seeds", "resolutions", "quality_functions")
 
     # NOTE I've used indices instead of actual values to make the transition easier
     # in case doRNG might need to be used; for now, the results seem to be consistent
     # TODO investigate the use of dofuture, whether it will help optimising the code
-    clusters_list <- suppressWarnings(foreach::foreach(
-        i_qfunc = seq_along(quality_functions),
+    clusters_list <- foreach::foreach(
+        index = seq_len(nrow(workers_indices)),
         .inorder = TRUE,
-        .final = function(x) setNames(x, quality_functions)
-    ) %:%
-    foreach::foreach(
-        i_res = seq_along(resolutions),
-        .inorder = TRUE,
-        .final = function(x) setNames(x, as.character(resolutions))
-    ) %:%
-    foreach::foreach(
-        i_seed = seq_along(seeds),
         .export = c(used_objects, used_functions),
-        .packages = c("Starlng", "SharedObject"),
-        .inorder = FALSE
+        .packages = c("Starlng", "SharedObject")
     ) %dopar% {
+        qfunc <- quality_functions[workers_indices$quality_function[index]]
+        res <- as.numeric(resolutions[[qfunc]][workers_indices$res[index]])
+        seed <- seeds[workers_indices$seed[index]]
+
         worker_res <- community_detection_worker(
             shared_adj_object = shared_adj_object,
             graph_type = graph_type,
-            resolution = resolutions[[i_res]],
-            quality_function = quality_functions[[i_qfunc]],
+            resolution = res,
+            quality_function = qfunc,
             number_iterations = number_iterations,
-            seed = seeds[[i_seed]]
+            seed = seed
         )
 
         worker_res
-    })
+    }
 
     if (ncores > 1) {
         shared_adj_object <- SharedObject::unshare(shared_adj_object)
     }
 
-    return(clusters_list)
+    return(create_hierarchy_from_master(
+        master_result = clusters_list,
+        workers_res_index = workers_indices,
+        resolution_list = resolutions
+    ))
 }
 
 clustering_pipeline <- function(embedding,
                                 n_neighbours = seq(from = 5, to = 50, by = 5),
                                 graph_type = "snn",
                                 prune_value = -1,
-                                resolutions = seq(from = 0.1, to = 1, by = 0.1),
-                                quality_functions = c("RBConfigurationVertexPartition"),
+                                resolutions = list(
+                                    "RBConfigurationVertexPartition" = seq(from = 0.1, to = 2, by = 0.1),
+                                    "RBERVertexPartition" = NULL,
+                                    "ModularityVertexPartition" = NULL
+                                ),
                                 number_iterations = 5,
                                 seeds = NULL,
                                 number_repetitions = 30,
@@ -189,7 +241,7 @@ clustering_pipeline <- function(embedding,
         clusters_list[[as.character(n_neigh)]] <- community_detection_master(
             adj_object = nn_adj_matrix,
             resolutions = resolutions,
-            quality_functions = quality_functions,
+            # quality_functions = quality_functions,
             number_iterations = number_iterations,
             seeds = seeds,
             graph_type = graph_type,

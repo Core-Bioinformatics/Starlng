@@ -148,8 +148,11 @@ starlng_write_app_monocle <- function(folder_path,
                                   "n_neighbours" = seq(from = 5, to = 50, by = 5),
                                   "graph_type" = "snn",
                                   "prune_value" = -1,
-                                  "resolutions" = seq(from = 0.1, to = 1, by = 0.1),
-                                  "quality_functions" = c("RBConfigurationVertexPartition"),
+                                  "resolutions" = list(
+                                      "RBConfigurationVertexPartition" = seq(from = 0.1, to = 2, by = 0.1),
+                                      "RBERVertexPartition" = NULL,
+                                      "ModularityVertexPartition" = NULL
+                                  ),
                                   "number_iterations" = 5,
                                   "number_repetitions" = 100
                               ),
@@ -184,6 +187,14 @@ starlng_write_app_monocle <- function(folder_path,
         if (verbose) print("Writing the monocle object...")
         qs::qsave(monocle_object, file = mon_path, nthreads = nthreads)
     }
+
+    # recommended pseudotime
+    if (verbose) print("Writing the recommended pseudotime...")
+    psd_path <- file.path(folder_path, "recommended_pseudotime.qs")
+    psd_values <- get_pseudotime_recommendation(monocle_object)
+    qs::qsave(psd_values, file = psd_path)
+
+
 
     # autocorrelation object
     if (verbose) print("Writing the gene info table...")
@@ -243,12 +254,13 @@ starlng_write_app_monocle <- function(folder_path,
     if (verbose) print("Writing the metadata object...")
     metadata_path <- file.path(folder_path, "metadata.qs")
     mtd_df <- as.data.frame(monocle_object@colData)
+    mtd_df$pseudotime <- psd_values$recommended_pseudotime[rownames(mtd_df)]
     mtd_df <- cbind(mtd_df, monocle_object@int_colData$reducedDims$UMAP)
     qs::qsave(mtd_df, file = metadata_path)
     
     # diet monocle object
     if (verbose) print("Writing the diet monocle object...")
-    mon_path <- file.path(folder_path, "digest_monocle_object.qs")
+    mon_path <- file.path(folder_path, "diet_monocle_object.qs")
     monocle_object <- diet_monocle_object(monocle_object)
     gc()
     qs::qsave(monocle_object, file = mon_path, nthreads = nthreads)
@@ -286,6 +298,8 @@ starlng_write_app_monocle <- function(folder_path,
 
         qs::qsave(clust_results, file = assess_path, nthreads = nthreads)
         best_config <- select_best_configuration(clust_results)
+        message("Best configuration: n_neigh - ", best_config[[1]], ", quality function - ", best_config[[2]])
+        qs::qsave(best_config, file = file.path(folder_path, "best_configuration.qs"))
         clust_results <- clust_results[[best_config[[1]]]][[best_config[[2]]]]
 
         stb_clust <- ClustAssess::choose_stable_clusters(
@@ -342,8 +356,11 @@ starlng_write_app_default <- function(folder_path,
                                   "n_neighbours" = seq(from = 5, to = 50, by = 5),
                                   "graph_type" = "snn",
                                   "prune_value" = -1,
-                                  "resolutions" = seq(from = 0.1, to = 1, by = 0.1),
-                                  "quality_functions" = c("RBConfigurationVertexPartition"),
+                                  "resolutions" = list(
+                                      "RBConfigurationVertexPartition" = seq(from = 0.1, to = 2, by = 0.1),
+                                      "RBERVertexPartition" = NULL,
+                                      "ModularityVertexPartition" = NULL
+                                  ),
                                   "number_iterations" = 5,
                                   "number_repetitions" = 100
                               ),
@@ -403,8 +420,11 @@ starlng_write_app_clustassess <- function(folder_path,
                                       "n_neighbours" = seq(from = 5, to = 50, by = 5),
                                       "graph_type" = "snn",
                                       "prune_value" = -1,
-                                      "resolutions" = seq(from = 0.1, to = 1, by = 0.1),
-                                      "quality_functions" = c("RBConfigurationVertexPartition"),
+                                      "resolutions" = list(
+                                          "RBConfigurationVertexPartition" = seq(from = 0.1, to = 2, by = 0.1),
+                                          "RBERVertexPartition" = NULL,
+                                          "ModularityVertexPartition" = NULL
+                                      ),
                                       "number_iterations" = 5,
                                       "number_repetitions" = 100
                                   ),
@@ -466,8 +486,11 @@ starlng_write_app_clustassess_app <- function(folder_path,
                                           "n_neighbours" = seq(from = 5, to = 50, by = 5),
                                           "graph_type" = "snn",
                                           "prune_value" = -1,
-                                          "resolutions" = seq(from = 0.1, to = 1, by = 0.1),
-                                          "quality_functions" = c("RBConfigurationVertexPartition"),
+                                          "resolutions" = list(
+                                              "RBConfigurationVertexPartition" = seq(from = 0.1, to = 2, by = 0.1),
+                                              "RBERVertexPartition" = NULL,
+                                              "ModularityVertexPartition" = NULL
+                                          ),
                                           "number_iterations" = 5,
                                           "number_repetitions" = 100
                                       ),
