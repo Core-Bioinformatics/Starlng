@@ -215,83 +215,66 @@ server_pseudotime_select_cells_panel <- function(id) {
         function(input, output, session) {
             highlight_colour <- ifelse(id == "start", "red", "blue")
             shiny::observe({
+                shiny::req(env$pseudotime_changes() > 0, id == "start")
+
+                shiny::updateSliderInput(
+                    session,
+                    inputId = "dist_threshold",
+                    value = 1
+                )
+            })
+
+            shiny::observe({
                 ns <- session$ns
                 nfilters <- input$n_filters
 
                 shiny::isolate({
-
-                output$filters <- shiny::renderUI({
-                    spsComps::onNextInput({
-                        for (i in seq_len(nfilters)) {
-                            shiny::updateSelectInput(
-                                session,
-                                inputId = paste0("filter_", i, "-metadata"),
-                                choices = names(env$discrete_mtd),
-                                selected = names(env$discrete_mtd)[1]
-                            )
-
-                            shiny::updateSelectizeInput(
-                                session,
-                                inputId = paste0("filter_", i, "-gene"),
-                                choices = names(env$genes),
-                                selected = names(env$genes)[1],
-                                server = TRUE,
-                                options = list(
-                                    placeholder = "Select gene(s)",
-                                    maxOptions = 7,
-                                    create = TRUE,
-                                    persist = TRUE
+                    output$filters <- shiny::renderUI({
+                        spsComps::onNextInput({
+                            for (i in seq_len(nfilters)) {
+                                recommended_option <- names(env$discrete_mtd)[1]
+                                if (i == 1 && id == "start") {
+                                    recommended_option <- env$recommended_psd$recommended_mtd_name
+                                    env$pseudotime_changes(1)
+                                }
+                                shiny::updateSelectInput(
+                                    session,
+                                    inputId = paste0("filter_", i, "-metadata"),
+                                    choices = names(env$discrete_mtd),
+                                    selected = recommended_option
                                 )
-                            )
-                        }
-                    })
 
-                    do.call(
-                        shiny::tagList,
-                        lapply(seq_len(nfilters), function(i) {
-                            ui_cell_select_filter(ns(paste0("filter_", i)))
+                                shiny::updateSelectizeInput(
+                                    session,
+                                    inputId = paste0("filter_", i, "-gene"),
+                                    choices = names(env$genes),
+                                    selected = names(env$genes)[1],
+                                    server = TRUE,
+                                    options = list(
+                                        placeholder = "Select gene(s)",
+                                        maxOptions = 7,
+                                        create = TRUE,
+                                        persist = TRUE
+                                    )
+                                )
+                            }
                         })
-                    )
-                    
-                    # assign("n_ops", nfilters, envir = env)
-                })
+
+                        do.call(
+                            shiny::tagList,
+                            lapply(seq_len(nfilters), function(i) {
+                                ui_cell_select_filter(ns(paste0("filter_", i)))
+                            })
+                        )
+                    })
                 })
 
             }) %>% shiny::bindEvent(input$n_filters)
 
-            # session$onFlushed(function() {
-            #     if (env$n_ops > 0) {
-            #         print("changing stuff")
-            #         for (i in seq_len(env$n_ops)) {
-            #             shiny::updateSelectInput(
-            #                 session,
-            #                 inputId = paste0("filter_", i, "-metadata"),
-            #                 choices = names(env$discrete_mtd),
-            #                 selected = names(env$discrete_mtd)[1]
-            #             )
-
-            #             shiny::updateSelectizeInput(
-            #                 session,
-            #                 inputId = paste0("filter_", i, "-gene"),
-            #                 choices = names(env$genes),
-            #                 selected = names(env$genes)[1],
-            #                 server = TRUE,
-            #                 options = list(
-            #                     placeholder = "Select gene(s)",
-            #                     maxOptions = 7,
-            #                     create = TRUE,
-            #                     persist = TRUE
-            #                 )
-            #             )
-            #         }
-
-            #         assign("n_ops", 0, envir = env)
-            #     }
-            # }, once = FALSE)
-
             shiny::observe({
                 for (i in seq_len(input$n_filters)) {
                     mtd <- input[[paste0("filter_", i, "-metadata")]]
+                    shiny::req(!is.null(mtd))
                     shiny::req(mtd %in% names(env$discrete_mtd))
                     shinyWidgets::updatePickerInput(
                         session,
@@ -300,6 +283,18 @@ server_pseudotime_select_cells_panel <- function(id) {
                         selected = env$discrete_mtd[[mtd]]
                     )
                 }
+
+                shiny::isolate({
+                    psd_change <- env$pseudotime_changes()
+                    if (id == "start" && psd_change > 0) {
+                        env$pseudotime_changes(0)
+                        shinyWidgets::updatePickerInput(
+                            session,
+                            inputId = "filter_1-metadata_groups",
+                            selected = env$recommended_psd$recommended_mtd_group
+                        )
+                    }
+                })
             })
 
             shiny::observe({
@@ -431,7 +426,7 @@ server_pseudotime_select_cells <- function(id) {
             end_cells <- server_pseudotime_select_cells_panel("end")
 
             pseudotime_value <- shiny::reactive({
-                shiny::req(start_cells(), end_cells(), env$pseudotime_changes())
+                shiny::req(start_cells(), end_cells())
 
                 shiny::isolate({
                     shinyjs::disable("psd_button")
@@ -458,23 +453,7 @@ server_pseudotime_select_cells <- function(id) {
                         end_cells = current_end
                     )
 
-                    # temp_mon <- monocle3::order_cells(
-                    #     subset_monocle_by_trajectory(
-                    #         env$mon_obj,
-                    #         current_start,
-                    #         current_end
-                    #     ),
-                    #     root_cells = current_start
-                    # )
-
-                    env$pseudotime_changes(env$pseudotime_changes() + 1)
-                    # entire_psd <- rep(NA, nrow(env$mtd_df))
-                    # names(entire_psd) <- colnames(env$mon_obj)
-                    # psd <- monocle3::pseudotime(temp_mon)
-                    # entire_psd[names(psd)] <- psd
-
                     temp_mtd_df <- env$mtd_df
-                    # temp_mtd_df$pseudotime <- entire_psd
                     temp_mtd_df$pseudotime <- psd_value
                     assign("mtd_df", temp_mtd_df, envir = env)
 
