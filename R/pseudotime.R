@@ -1,3 +1,15 @@
+update_mononcle_partition <- function(mon_obj, new_partition) {
+    new_partition <- factor(as.numeric(factor(new_partition)))
+
+    if (!("partitions" %in% names(mon_obj@clusters@listData$UMAP))) {
+        mon_obj <- monocle3::cluster_cells(mon_obj)
+    }
+
+    mon_obj@clusters@listData$UMAP$partitions <- setNames(new_partition, colnames(mon_obj))
+    mon_obj@clusters@listData$UMAP$clusters <- setNames(new_partition, colnames(mon_obj))
+
+    return(mon_obj)
+}
 
 subset_monocle_by_trajectory <- function(mon_obj, start_cells = NULL, end_cells = NULL) {
     if (is.null(start_cells) || is.null(end_cells)) {
@@ -159,18 +171,46 @@ custom_pseudotime_ordering <- function(monocle_object,
     return(entire_psd)
 }
 
-update_mononcle_partition <- function(mon_obj, new_partition) {
-    new_partition <- factor(as.numeric(factor(new_partition)))
-
-    if (!("partitions" %in% names(mon_obj@clusters@listData$UMAP))) {
-        mon_obj <- monocle3::cluster_cells(mon_obj)
+get_pseudotime_recommendation <- function(monocle_object) {
+    discrete_groups <- list()
+    for (mtd_name in colnames(monocle_object@colData)) {
+        if (inherits(monocle_object@colData[[mtd_name]], c("factor", "character"))) {
+            discrete_groups[[mtd_name]] <- split(colnames(monocle_object), monocle_object@colData[[mtd_name]])
+        }
     }
 
-    mon_obj@clusters@listData$UMAP$partitions <- setNames(new_partition, colnames(mon_obj))
-    mon_obj@clusters@listData$UMAP$clusters <- setNames(new_partition, colnames(mon_obj))
+    umap_df <- monocle_object@int_colData$reducedDims$UMAP
+    current_iqr <- 0
 
-    return(mon_obj)
+    for (mtd_name in names(discrete_groups)) {
+        for (mtd_group in names(discrete_groups[[mtd_name]])) {
+            cell_group <- discrete_groups[[mtd_name]][[mtd_group]]
+            if (length(cell_group) == 0) {
+                next
+            }
+
+            filtered_cells <- filter_central_cells_from_group(
+                cell_group = cell_group,
+                umap_embedding = umap_df,
+                n_points = 5
+            )
+            monocle_object <- monocle3::order_cells(monocle_object, root_cells = filtered_cells)
+
+            fvn <- fivenum(monocle3::pseudotime(monocle_object))
+            iqr_psd <- fvn[4] - fvn[2]
+
+            if (iqr_psd > current_iqr) {
+                current_iqr <- iqr_psd
+                recommended_mtd_group <- mtd_group
+                recommended_mtd_name <- mtd_name
+                recommended_pseudotime <- monocle3::pseudotime(monocle_object)
+            }
+        }
+    }
+
+    return(list(
+        recommended_mtd_name = recommended_mtd_name,
+        recommended_mtd_group = recommended_mtd_group,
+        recommended_pseudotime = recommended_pseudotime
+    ))
 }
-
-
-

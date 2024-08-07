@@ -115,7 +115,7 @@ select_cells_by_metadata <- function(metadata_df, metadata_combinations) {
     return(rownames(metadata_df))
 }
 
-remove_outlier_cells <- function(cell_names, umap_emb, percentile_threshold = 0.75) {
+remove_outlier_cells <- function(cell_names, umap_emb, percentile_threshold = 0.75, gmedian_point = NULL) {
     if (is.null(rownames(umap_emb))) {
         rownames(umap_emb) <- seq_len(nrow(umap_emb))
     }
@@ -126,13 +126,58 @@ remove_outlier_cells <- function(cell_names, umap_emb, percentile_threshold = 0.
 
     umap_emb <- umap_emb[cell_names, ]
 
-    gmedian <- Gmedian::Gmedian(umap_emb)
+    if (is.null(gmedian_point)) {
+        gmedian_point <- Gmedian::Gmedian(umap_emb)
+    }
     distance_cells_gmedian <- (
-        (umap_emb[, 1] - gmedian[1, 1]) ^ 2 +
-        (umap_emb[, 2] - gmedian[1, 2]) ^ 2
+        (umap_emb[, 1] - gmedian_point[1, 1]) ^ 2 +
+        (umap_emb[, 2] - gmedian_point[1, 2]) ^ 2
     ) ^ 0.5
 
     threshold_distance <- quantile(distance_cells_gmedian, probs = percentile_threshold)
 
     return(cell_names[distance_cells_gmedian <= threshold_distance])
+}
+
+filter_central_cells_from_group <- function(cell_group, umap_embedding, n_points = 5) {
+    if (!(all(cell_group %in% rownames(umap_embedding)))) {
+        stop("Some cells were not found in the UMAP embedding")
+    }
+
+    umap_embedding <- umap_embedding[cell_group, , drop = FALSE]
+    if (nrow(umap_embedding) == 0) {
+        stop("No cells found in the UMAP embedding based on the provided group.")
+    }
+
+    if (nrow(umap_embedding) <= n_points) {
+        return(cell_group)
+    }
+
+    gmedian_point <- Gmedian::Gmedian(umap_embedding)
+    distance_cells_gmedian <- (
+        (umap_embedding[, 1] - gmedian_point[1, 1]) ^ 2 +
+        (umap_embedding[, 2] - gmedian_point[1, 2]) ^ 2
+    ) ^ 0.5
+
+    start_threshold <- 0
+    end_threshold <- 1
+    prev_distance <- 0
+    while (start_threshold < end_threshold) {
+        threshold_mid <- round((start_threshold + end_threshold) / 2, 2)
+        if (prev_distance == threshold_mid) {
+            break
+        }
+
+        threshold_distance <- quantile(distance_cells_gmedian, probs = threshold_mid)
+        index_cells <- which(distance_cells_gmedian <= threshold_distance)
+
+        if (length(index_cells) <= n_points) {
+            start_threshold <- threshold_mid
+        } else {
+            end_threshold <- threshold_mid
+        }
+        prev_distance <- threshold_mid
+    }
+
+    return(cell_group[index_cells])
 }
