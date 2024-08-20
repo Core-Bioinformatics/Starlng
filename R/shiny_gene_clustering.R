@@ -206,17 +206,17 @@ server_gene_clustering <- function(id, filtered_genes) {
                 cl_result <- group_by_clusters_general(clustering_pipeline(
                     # TODO change this after you reach a conclusion about the best option for the input matrix
                     embedding = get_feature_loading(
-                        read_gene_from_dense_h5(
+                        expr_matrix = read_gene_from_dense_h5(
                             gene_name = filtered_genes(),
                             matrix_h5_path = file.path("objects", "expression.h5"),
                             index_genes = env$genes[filtered_genes()],
                             check_intersect = FALSE
-                        )
+                        ),
+                        approx = TRUE
                     ),
                     n_neighbours = input$n_neighbours,
                     graph_type = tolower(input$graph_type),
                     resolutions = res_list,
-                    # quality_functions = paste0(input$qfunc, "VertexPartition"),
                     number_iterations = input$n_iterations,
                     number_repetitions = input$n_seeds
                 ), 3)
