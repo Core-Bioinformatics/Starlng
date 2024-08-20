@@ -86,7 +86,10 @@ subset_monocle_by_trajectory <- function(mon_obj, start_cells = NULL, end_cells 
 # the only addition is the number of nodes per log 10 cells that can be schosen by the user (not accessible via monocle)
 custom_learn_graph <- function(mon_obj,
                                nodes_per_log10_cells = 30,
-                               learn_graph_controls = NULL,
+                               learn_graph_controls = list(
+                                    eps = 1e-5,
+                                    maxiter = 100
+                               ),
                                use_partition = FALSE,
                                use_closed_loops = FALSE,
                                verbose = FALSE,

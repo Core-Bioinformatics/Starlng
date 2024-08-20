@@ -140,9 +140,12 @@ shiny::shinyApp(ui = ui, server = server)
 starlng_write_app_monocle <- function(folder_path,
                               monocle_object,
                               app_title_name = "",
-                              learn_graph_parameters = list(),
+                              learn_graph_parameters = list(
+                                  eps = 1e-5,
+                                  maxiter = 100
+                              ),
                               gene_filtering_function = function(info_gene_df) {
-                                  rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1))
+                                  rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1, .data$q_value < 0.05))
                               },
                               clustering_parameters = list(
                                   "n_neighbours" = seq(from = 5, to = 50, by = 5),
@@ -348,9 +351,12 @@ starlng_write_app_default <- function(folder_path,
                               pca_embedding = NULL,
                               umap_embedding = NULL,
                               app_title_name = "",
-                              learn_graph_parameters = list(),
+                              learn_graph_parameters = list(
+                                  eps = 1e-5,
+                                  maxiter = 100
+                              ),
                               gene_filtering_function = function(info_gene_df) {
-                                  rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1))
+                                  rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1, .data$q_value < 0.05))
                               },
                               clustering_parameters = list(
                                   "n_neighbours" = seq(from = 5, to = 50, by = 5),
@@ -412,9 +418,12 @@ starlng_write_app_clustassess <- function(folder_path,
                                   stable_n_clusters = NULL,
                                   use_all_genes = TRUE,
                                   app_title_name = "",
-                                  learn_graph_parameters = list(),
+                                  learn_graph_parameters = list(
+                                      eps = 1e-5,
+                                      maxiter = 100
+                                  ),
                                   gene_filtering_function = function(info_gene_df) {
-                                      rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1))
+                                      rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1, .data$q_value < 0.05))
                                   },
                                   clustering_parameters = list(
                                       "n_neighbours" = seq(from = 5, to = 50, by = 5),
@@ -478,9 +487,12 @@ starlng_write_app_clustassess_app <- function(folder_path,
                                       stable_n_clusters = NULL,
                                       use_all_genes = TRUE,
                                       app_title_name = "",
-                                      learn_graph_parameters = list(),
+                                      learn_graph_parameters = list(
+                                          eps = 1e-5,
+                                          maxiter = 100
+                                      ),
                                       gene_filtering_function = function(info_gene_df) {
-                                          rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1))
+                                          rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1, .data$q_value < 0.05))
                                       },
                                       clustering_parameters = list(
                                           "n_neighbours" = seq(from = 5, to = 50, by = 5),
