@@ -373,7 +373,7 @@ server_pseudotime_select_cells_panel <- function(id) {
                                 umap_embedding = env$umap_df,
                                 cell_info = mask,
                                 mtd_name = "Selected cells",
-                                cell_sort_order = c("not_selected", "selected"),
+                                cell_sort_order = c("not selected", "selected"),
                                 cell_size = input$settings_pt_size,
                                 cell_alpha = input$settings_pt_alpha,
                                 legend_text_size = input$settings_legend_size,
