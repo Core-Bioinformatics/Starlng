@@ -13,7 +13,9 @@ read_gene_from_dense_h5 <- function(gene_names,
     }
 
     if (is.null(index_genes)) {
-        index_genes <- which(rhdf5::h5read(matrix_h5_path, "genes") %in% gene_names)
+        genes <- rhdf5::h5read(matrix_h5_path, "genes")
+        index_genes <- which(genes %in% gene_names)
+        gene_names <- genes[index_genes]
     }
 
     gene_matrix <- rhdf5::h5read(
