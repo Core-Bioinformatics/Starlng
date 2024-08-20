@@ -13,3 +13,14 @@ clear_psock_memory <- function() {
         gc()
     }
 }
+
+scale_min_max <- function(x) {
+    min_val <- min(x)
+    max_val <- max(x)
+
+    if (min_val == max_val) {
+        return(x)
+    }
+
+    return((x - min_val) / (max_val - min_val))
+}

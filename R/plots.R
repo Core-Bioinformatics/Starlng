@@ -51,7 +51,7 @@ plot_umap_discrete <- function(umap_df,
 sort_umap_discrete <- function(umap_df,
                                cell_sort_order = NULL) {
 
-    unique_vals <- unique(umap_df$cell_info)
+    unique_vals <- as.character(unique(umap_df$cell_info))
     n_unique <- length(unique_vals)
 
     if (!is.null(cell_sort_order) && length(cell_sort_order) != n_unique) {
@@ -140,13 +140,8 @@ plot_umap <- function(umap_embedding,
     }
 
     if (!is_discrete && scale_values) {
-        min_val <- min(df$cell_info)
-        max_val <- max(df$cell_info)
-
-        if (max_val > min_val) {
-            df$cell_info <- (df$cell_info - min_val) / (max_val - min_val)
-            mtd_name <- paste(mtd_name, "(scaled)")
-        }
+        df$cell_info <- scale_min_max(df$cell_info)
+        mtd_name <- paste(mtd_name, "(scaled)")
     }
 
     gplot_obj <- ggplot2::ggplot(df, ggplot2::aes(
@@ -383,7 +378,6 @@ plot_umap_gene_modules_shiny <- function(shiny_env,
         )
 }
 
-
 generate_cell_heatmap <- function(expression_matrix,
                                   gene_family_list,
                                   metadata_df,
@@ -397,6 +391,7 @@ generate_cell_heatmap <- function(expression_matrix,
                                   continuous_colors = NULL) {
     if (apply_scale) {
         expression_matrix <- t(scale(t(expression_matrix)))
+        gc()
         expression_matrix[expression_matrix < -cap] <- -cap
         expression_matrix[expression_matrix > cap] <- cap
     } else {
@@ -439,11 +434,6 @@ generate_cell_heatmap <- function(expression_matrix,
         rm(matrix_convolved)
         gc()
     }
-
-
-    # sample_names <- rep(NA, ncol(expression_matrix))
-    # sample_names[seq_len(ncells1)] <- get("dts_names", envir = env)[1]
-    # sample_names[(ncells1 + 1):ncol(expression_matrix)] <- get("dts_names", envir = env)[2]
 
     gene_family_vector <- rep(NA, nrow(expression_matrix))
     index <- 1
@@ -527,6 +517,7 @@ generate_cell_heatmap <- function(expression_matrix,
         show_column_names = FALSE,
         show_row_names = FALSE,
         use_raster = TRUE,
+        raster_by_magick = TRUE,
         col = continuous_colors,
         bottom_annotation = bottom_ha,
         left_annotation = left_ha,
