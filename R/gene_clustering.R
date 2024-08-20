@@ -216,7 +216,7 @@ clustering_pipeline <- function(embedding,
                                 ),
                                 number_iterations = 5,
                                 seeds = NULL,
-                                number_repetitions = 30,
+                                number_repetitions = 100,
                                 merge_identical_partitions = FALSE,
                                 memory_log_file = NULL) {
     # TODO add progress bar
@@ -224,6 +224,10 @@ clustering_pipeline <- function(embedding,
     # TODO check if the nested foreach don't add overhead and if there are other better ways to do it
     if (is.null(seeds)) {
         seeds <- seq(from = 1, by = 100, length.out = number_repetitions)
+    }
+
+    if (length(seeds) < number_repetitions) {
+        seeds <- c(seeds, seq(from = seeds[length(seeds)] + 1, by = 100, length.out = number_repetitions - length(seeds)))
     }
 
     point_names <- rownames(embedding)
