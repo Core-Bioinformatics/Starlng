@@ -93,7 +93,7 @@ server_gene_info_table <- function(id) {
             filtered_moran_df <- shiny::reactive({
                 shiny::req(input$moran_q, input$moran_i, input$average, input$average_nonzero, input$perc_cells)
                 env$moran_df %>%
-                    dplyr::filter(.data$q_value < input$moran_q, .data$morans_I > input$moran_i, .data$average_expression > input$average, .data$average_expression_nonzero > input$average_nonzero, .data$percent_expressed_cells < input$perc_cells / 100)
+                    dplyr::filter(.data$q_value < input$moran_q, .data$morans_I > input$moran_i, .data$average_expression > input$average, .data$average_expression_nonzero > input$average_nonzero, .data$percent_expressed_cells <= input$perc_cells / 100)
             })
 
             shiny::observe({
