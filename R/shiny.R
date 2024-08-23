@@ -141,8 +141,11 @@ starlng_write_app_monocle <- function(folder_path,
                               monocle_object,
                               app_title_name = "",
                               learn_graph_parameters = list(
-                                  eps = 1e-5,
-                                  maxiter = 100
+                                  nodes_per_log10_cells = 30,
+                                  learn_graph_controls = list(
+                                    eps = 1e-5,
+                                    maxiter = 100
+                                  )
                               ),
                               gene_filtering_function = function(info_gene_df) {
                                   rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1, .data$q_value < 0.05))
@@ -196,8 +199,6 @@ starlng_write_app_monocle <- function(folder_path,
     psd_path <- file.path(folder_path, "recommended_pseudotime.qs")
     psd_values <- get_pseudotime_recommendation(monocle_object)
     qs::qsave(psd_values, file = psd_path)
-
-
 
     # autocorrelation object
     if (verbose) print("Writing the gene info table...")
@@ -280,14 +281,15 @@ starlng_write_app_monocle <- function(folder_path,
         RhpcBLASctl::blas_set_num_threads(nthreads)
         clustering_parameters[["embedding"]] <- get_feature_loading(
             expr_matrix = expr_matrix[chosen_genes, ],
-            30
+            npcs = 30,
+            approx = FALSE
         )
         RhpcBLASctl::blas_set_num_threads(1)
 
         created_cluster <- FALSE
         if (nthreads > 1 && foreach::getDoParWorkers() == 1) {
             created_cluster <- TRUE
-            par_cluster <- parallel::makeCluster(nthreads)
+            par_cluster <- parallel::makePSOCKCluster(nthreads)
 
             doParallel::registerDoParallel(par_cluster)
         }
@@ -352,8 +354,11 @@ starlng_write_app_default <- function(folder_path,
                               umap_embedding = NULL,
                               app_title_name = "",
                               learn_graph_parameters = list(
-                                  eps = 1e-5,
-                                  maxiter = 100
+                                  nodes_per_log10_cells = 30,
+                                  learn_graph_controls = list(
+                                    eps = 1e-5,
+                                    maxiter = 100
+                                  )
                               ),
                               gene_filtering_function = function(info_gene_df) {
                                   rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1, .data$q_value < 0.05))
@@ -419,9 +424,12 @@ starlng_write_app_clustassess <- function(folder_path,
                                   use_all_genes = TRUE,
                                   app_title_name = "",
                                   learn_graph_parameters = list(
-                                      eps = 1e-5,
-                                      maxiter = 100
-                                  ),
+                                        nodes_per_log10_cells = 30,
+                                        learn_graph_controls = list(
+                                            eps = 1e-5,
+                                            maxiter = 100
+                                        )
+                                    ),
                                   gene_filtering_function = function(info_gene_df) {
                                       rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1, .data$q_value < 0.05))
                                   },
@@ -487,10 +495,13 @@ starlng_write_app_clustassess_app <- function(folder_path,
                                       stable_n_clusters = NULL,
                                       use_all_genes = TRUE,
                                       app_title_name = "",
-                                      learn_graph_parameters = list(
-                                          eps = 1e-5,
-                                          maxiter = 100
-                                      ),
+                                       learn_graph_parameters = list(
+                                        nodes_per_log10_cells = 30,
+                                        learn_graph_controls = list(
+                                            eps = 1e-5,
+                                            maxiter = 100
+                                        )
+                                    ),
                                       gene_filtering_function = function(info_gene_df) {
                                           rownames(info_gene_df %>% dplyr::filter(.data$morans_I > 0.1, .data$q_value < 0.05))
                                       },
