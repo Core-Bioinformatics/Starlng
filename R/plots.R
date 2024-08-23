@@ -182,7 +182,7 @@ plot_umap <- function(umap_embedding,
         return(gplot_obj + ggplot2::scale_color_manual(values = used_colors))
     }
 
-    if (is.null(continuous_colors)) {
+    if (is.null(continuous_colors) || colourbar_width == 0) {
         return(gplot_obj)
     }
 
@@ -378,6 +378,89 @@ plot_umap_gene_modules_shiny <- function(shiny_env,
         )
 }
 
+plot_umap_gene_modules_shiny_2 <- function(module_summaries,
+                                           shiny_env,
+                                           legend_detail = "",
+                                           scale_values = TRUE,
+                                           n_columns = 3,
+                                           trajectory_width = 0.75,
+                                           cell_sort_order = c("lowest", "highest", "default"),
+                                           cell_size = 0.3,
+                                           cell_alpha = 0.8,
+                                           legend_text_size = 10,
+                                           axis_text_size = 10,
+                                           colourbar_height = 50,
+                                           continuous_colors = NULL) {
+    if (module_summaries[[1]][1] %in% c("not selected", "selected")) {
+        legend_name <- "Cells above threshold"
+        cell_ordering <- c("not selected", "selected")
+    } else {
+        legend_name <- "Gene expression"
+        cell_ordering <- cell_sort_order
+    }
+
+    plot_list <- lapply(names(module_summaries), function(gene_module) {
+        gc()
+        gplot_obj <- plot_umap(
+            umap_embedding = shiny_env$umap_df,
+            cell_info = module_summaries[[gene_module]],
+            mtd_name = legend_name,
+            cell_sort_order = cell_ordering,
+            scale_values = scale_values,
+            cell_size = cell_size,
+            cell_alpha = cell_alpha,
+            legend_text_size = legend_text_size,
+            axis_text_size = axis_text_size,
+            discrete_colors = list(
+                "1" = "red",
+                "2" = c("gray", "red")
+            ),
+            colourbar_width = 0,
+            continuous_colors = NULL
+        ) + ggplot2::ggtitle(paste("module", gene_module))
+
+        if (is.null(shiny_env$trajectory_gplot)) {
+            return(gplot_obj)
+        }
+
+        traj_layer <- shiny_env$trajectory_gplot$layers[[1]]
+        traj_layer$aes_params$size <- trajectory_width
+        gplot_obj$layers <- c(gplot_obj$layers, traj_layer)
+        return(gplot_obj)
+    })
+
+    names(plot_list) <- names(module_summaries)
+
+    max_value <- max(sapply(plot_list, function(plot) {
+        max(plot$data$cell_info)
+    }))
+
+    min_value <- min(sapply(plot_list, function(plot) {
+        min(plot$data$cell_info)
+    }))
+
+    for (i in seq_along(plot_list)) {
+        plot_list[[i]] <- plot_list[[i]] +
+            ggplot2::theme(
+                legend.position = "right"
+            ) +
+            ggplot2::guides(
+                colour = ggplot2::guide_colourbar(
+                    title.position = "top",
+                    barheight = grid::unit(colourbar_height, "points")
+                )
+            )
+    }
+
+    patchwork::wrap_plots(plotlist = plot_list, ncol = n_columns) +
+        patchwork::plot_layout(guides = "collect") &
+        ggplot2::scale_colour_gradientn(
+            name = paste0("Gene\n", legend_detail, "\n", ifelse(scale_values, "(scaled)", "")),
+            colours = continuous_colors,
+            limits = c(min_value, max_value)
+        )
+}
+
 generate_cell_heatmap <- function(expression_matrix,
                                   gene_family_list,
                                   metadata_df,
@@ -406,6 +489,8 @@ generate_cell_heatmap <- function(expression_matrix,
     if (is.null(continuous_colors)) {
         continuous_colors <- c("white", "red")
     }
+
+    ncells <- ncol(expression_matrix)
 
     # reorder using pseudotime
     present_psd <- FALSE
@@ -517,7 +602,7 @@ generate_cell_heatmap <- function(expression_matrix,
         show_column_names = FALSE,
         show_row_names = FALSE,
         use_raster = TRUE,
-        raster_by_magick = TRUE,
+        raster_by_magick = (ncells <= 10000),
         col = continuous_colors,
         bottom_annotation = bottom_ha,
         left_annotation = left_ha,

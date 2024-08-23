@@ -80,18 +80,84 @@ server_module_umap <- function(id) {
                 selected = default_col_scheme
             )
 
+            module_summaries <- shiny::reactive({
+                gene_modules <- env$chosen_modules()
+                summ_expr <- input$summarise_expr
+                summary_function <- switch(
+                    summ_expr,
+                    "binary" = NULL,
+                    "average expressed" = function(x) { mean(x[x > 0]) },
+                    "average" = mean,
+                    "#genes" = function(x) { sum(x > 0) },
+                    NULL
+                )
+
+                summ_list <- lapply(names(gene_modules), function(gene_module) {
+                    gc()
+                    gene_matrix <- read_gene_from_dense_h5(
+                        gene_name = gene_modules[[gene_module]],
+                        matrix_h5_path = file.path("objects", "expression.h5"),
+                        index_genes = env$genes[gene_modules[[gene_module]]],
+                        check_intersect = FALSE
+                    )
+
+                    return(voting_scheme(
+                        expression_matrix = gene_matrix,
+                        genes = gene_modules[[gene_module]],
+                        thresh_percentile = 0,
+                        thresh_value = 0,
+                        n_coexpressed_thresh = 0,
+                        summary_function = summary_function
+                    ))
+                })
+                names(summ_list) <- names(gene_modules)
+
+                return(summ_list)
+            })
+
+            # composite_plot <- shiny::reactive({
+            #     shiny::req(env$window_dim(), env$chosen_modules(), input$n_columns > 0, input$summarise_expr)
+            #     req_gear_umap(session, "settings")
+
+            #     shiny::isolate({
+            #         colourbar_height <- min(env$window_dim()) / 2
+
+            #         plot_umap_gene_modules_shiny(
+            #             shiny_env = env,
+            #             gene_modules = env$chosen_modules(),
+            #             summarise_expr = input$summarise_expr,
+            #             n_columns = input$n_columns,
+            #             scale_values = input$settings_scale,
+            #             trajectory_width = input$settings_trajectory_width,
+            #             cell_sort_order = input$settings_pt_order,
+            #             cell_size = input$settings_pt_size,
+            #             cell_alpha = input$settings_pt_alpha,
+            #             legend_text_size = input$settings_legend_size,
+            #             axis_text_size = input$settings_axis_size,
+            #             colourbar_height = colourbar_height,
+            #             continuous_colors = env$color_options$continuous[[input$settings_colour_scheme]]
+            #         )
+            #     })
+            # })
+            
             composite_plot <- shiny::reactive({
-                shiny::req(env$window_dim(), env$chosen_modules(), input$n_columns > 0, input$summarise_expr)
+                win_dim <- env$window_dim()
+                module_summ <- module_summaries()
+                patch_ncol <- input$n_columns
+                summarise_expr <- input$summarise_expr
+
+                shiny::req(patch_ncol > 0, !is.null(module_summ), !is.null(win_dim))
                 req_gear_umap(session, "settings")
 
                 shiny::isolate({
-                    colourbar_height <- min(env$window_dim()) / 2
+                    gc()
+                    colourbar_height <- min(win_dim) / 2
 
-                    plot_umap_gene_modules_shiny(
+                    plot_umap_gene_modules_shiny_2(
+                        module_summaries = module_summ,
                         shiny_env = env,
-                        gene_modules = env$chosen_modules(),
-                        summarise_expr = input$summarise_expr,
-                        n_columns = input$n_columns,
+                        legend_detail = summarise_expr,
+                        n_columns = patch_ncol,
                         scale_values = input$settings_scale,
                         trajectory_width = input$settings_trajectory_width,
                         cell_sort_order = input$settings_pt_order,
