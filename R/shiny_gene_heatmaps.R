@@ -85,7 +85,7 @@ ui_by_cell_heatmap <- function(id) {
                             shiny::numericInput(
                                 inputId = ns("cap_value"),
                                 label = "Value cap",
-                                min = 0, max = 20, value = 10, step = 0.1
+                                min = 0, max = 20, value = 4, step = 0.1
                             ),
                             shiny::sliderInput(
                                 inputId = ns("axis_size"),
@@ -113,6 +113,7 @@ ui_by_cell_heatmap <- function(id) {
                     gear_download(ns, "heatmap", "heatmap")
                 )
             ),
+            shiny::p("Warning! Creating this heatmap might require a lot of memory and time. Please be patient. Consider using a small number of genes."),
             shiny::column(2,
                 shiny::selectInput(
                     inputId = ns("module_order"),
@@ -363,7 +364,7 @@ server_by_cell_heatmap <- function(id, metadata_name) {
 
                 # }
                 shiny::isolate({
-                    print(paste(Sys.time(), "rendering by cell"))
+                    shinyjs::disable("generate_heatmap")
                     module_order <- input$module_order
                     sub_module_list <- env$chosen_modules()[module_order]
                     gene_matrix <- do.call(rbind,
@@ -408,7 +409,7 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                         discrete_colour_list = env$color_options$discrete,
                         continuous_colors = env$color_options$continuous[[input$colour_scheme]]
                     )
-                    shinyjs::enable("generate_heatmap")
+                    gc()
                     return(htmp_obj)
                 })
             }) %>% shiny::bindEvent(input$generate_heatmap)
@@ -434,6 +435,8 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                                 htmp_obj(),
                                 merge_legend = TRUE
                             )
+                            shinyjs::enable("generate_heatmap")
+                            gc()
                         }
                     )
                 })
@@ -451,6 +454,7 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                         save_filetypes[[input$filetype_heatmap]](file, width = input$width_heatmap, height = input$height_heatmap)
                         ComplexHeatmap::draw(htmp_obj(), merge_legend = TRUE)
                         dev.off()
+                        gc()
                     }
                 )
             })
