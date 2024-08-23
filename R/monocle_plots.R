@@ -129,7 +129,7 @@ diet_monocle_object <- function(mon_obj) {
         if (slot_names == "counts") {
             next
         }
-        mon_obj@assays@data@listData[[slot_names]]<- NULL
+        mon_obj@assays@data@listData[[slot_names]] <- NULL
     }
 
     # keep only one metadata column
@@ -149,6 +149,16 @@ diet_monocle_object <- function(mon_obj) {
         }
         mon_obj@int_colData@listData$reducedDims@listData[[dim_reduc_name]] <- NULL
     }
+
+    for (dim_reduc_name in names(mon_obj@clusters)) {
+        if (dim_reduc_name == "UMAP") {
+            next
+        }
+
+        mon_obj@clusters[[dim_reduc_name]] <- NULL
+    }
+
+    mon_obj@clusters$UMAP$cluster_result <- NULL
 
     return(mon_obj)
 }
