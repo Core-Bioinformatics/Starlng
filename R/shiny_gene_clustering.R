@@ -181,7 +181,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                     target = "preloaded"
                 )
             } else {
-                clust_df[["preloaded"]] <- env$preloaded_stable_modules
+                clust_df[["preloaded"]] <- shiny::reactiveVal(env$preloaded_stable_modules)
             }
 
             shiny::observe({
@@ -435,6 +435,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                 shiny::req(input$gene_clusters_options, clust_df[[input$tabset]]())
 
                 shiny::isolate({
+                    shinyjs::disable("select_module")
                     module <- clust_df[[input$tabset]]()[, input$gene_clusters_options]
                     names(module) <- rownames(clust_df[[input$tabset]]())
                     env$chosen_modules(split(names(module), module))

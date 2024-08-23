@@ -66,11 +66,11 @@ ui_gene_info_table <- function(id) {
         ),
         shiny::p("High values of I indicate that nearby cells have very similar values of the gene's expression."),
         shiny::p("Low q_value are a good indicator of good positive autocorrelation"),
-        DT::dataTableOutput(ns("gene_table")),
-        shiny::downloadButton(
-            outputId = ns("download_genes"),
-            label = "Download genes as CSV"
-        )
+        DT::dataTableOutput(ns("gene_table"))
+        # shiny::downloadButton(
+        #     outputId = ns("download_genes"),
+        #     label = "Download genes as CSV"
+        # )
     )
 }
 

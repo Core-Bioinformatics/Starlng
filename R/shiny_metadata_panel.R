@@ -165,7 +165,7 @@ server_metadata_umap <- function(id) {
                         selected = colnames(env$mtd_df)[1]
                     )
                 }
-            }) %>% shiny::bindEvent(env$pseudotime_changes())
+            }) # %>% shiny::bindEvent(env$pseudotime_changes())
             server_metadata_umap_panel("left")
             server_metadata_umap_panel("right")
         }

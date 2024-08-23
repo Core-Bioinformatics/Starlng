@@ -140,7 +140,7 @@ prepare_session <- function(reactive_dim, height_ratio = 0.7) {
         for (i in colnames(pre_stable_modules)) {
             pre_stable_modules[, i] <- factor(pre_stable_modules[, i])
         }
-        assign("preloaded_stable_modules", shiny::reactiveVal(pre_stable_modules), envir = env)
+        assign("preloaded_stable_modules", pre_stable_modules, envir = env)
         # assign("preloaded_options", shiny::reactiveVal(colnames(pre_stable_modules)), envir = env)
     }
     assign("chosen_modules", shiny::reactiveVal(NULL), envir = env)

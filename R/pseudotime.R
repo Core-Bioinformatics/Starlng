@@ -94,7 +94,7 @@ custom_learn_graph <- function(mon_obj,
                                use_closed_loops = FALSE,
                                verbose = FALSE,
                                metadata_for_nodes = NULL) {
-    cal_ncenter <- function(num_cell_communities, ncells, nodes_per_log10_cells=15) {
+    cal_ncenter <- function(num_cell_communities, ncells, nodes_per_log10_cells=30) {
         round(num_cell_communities * nodes_per_log10_cells * log10(ncells))
     }
 
