@@ -245,7 +245,6 @@ clustering_pipeline <- function(embedding,
         clusters_list[[as.character(n_neigh)]] <- community_detection_master(
             adj_object = nn_adj_matrix,
             resolutions = resolutions,
-            # quality_functions = quality_functions,
             number_iterations = number_iterations,
             seeds = seeds,
             graph_type = graph_type,
