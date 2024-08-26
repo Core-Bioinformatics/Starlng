@@ -136,6 +136,86 @@ shiny::shinyApp(ui = ui, server = server)
     write(content, file = file_path)
 }
 
+#' Create Starlng Shiny app from Monocle object
+#' 
+#' @description Runs the entire Starlng pipeline on a Monocle object and
+#' generates a folder with all necessary files to run a Shiny app.
+#' 
+#' @param folder_path The path of the folder where the app will be saved.
+#' @param monocle_object The monocle3 object that will be used as a starting
+#' point.
+#' @param app_title_name The title of the shiny app.
+#' @param learn_graph_parameters A list of parameters that will be passed to
+#' the `custom_learn_graph` function. Possible options:
+#' - `nodes_per_log10_cells` - the number of nodes per log10 cells. It is used
+#' to influence the level of detail in the inferred trajectory.
+#' - `learn_graph_controls` - a list of parameters that will be passed to the
+#' `learn_graph` function of the monocle3 package. These parameters are usually
+#' used to influence the convergence of the algorithm or the pruning of the
+#' resulting trajectory.
+#' @param gene_filtering_function A function that will be used to filter the
+#' genes that will be used in the clustering analysis. The function should take
+#' only one parameter, which is a data frame. The data frame will contain the
+#' following columns:
+#' - `morans_I` - the Moran's I value of the gene.
+#' - `q_value` - the adjusted p-value of the gene being spatially autocorrelated.
+#' - `average_expression` - the average expression of the gene.
+#' - `n_expressed_cells` - the number of cells that express the gene.
+#' - `average_expression_nonzero` - the average expression of the gene in cells
+#' that express it.
+#' - `percent_expressed_cells` - the percentage of cells that express the gene.
+#' The function should return a list of gene names that will be considered to be
+#' the result of the filtering.
+#' @param clustering_parameters A list of parameters that will be passed to the
+#' `clustering_pipeline` function. Consult the documentation of the function for
+#' further details.
+#' @param ecc_threshold The threshold applied on the Element-Centric Consistency
+#' (ECC) score to determine if a number of cluster is stable or not. By default,
+#' it is set to 0.9.
+#' @param freq_threshold The threshold applied on the number of times a number
+#' of clusters is obtained after running the `clustering_pipeline` function. By
+#' default, it is set to 30.
+#' @param save_entire_monocle If TRUE, saves the monocle object in the app
+#' folder. This object could be used to perform additional changes to the app
+#' or to continue the downstream analysis.
+#' @param discrete_colours A list of colours that will be used to colour the
+#' groups from the discrete metadata. The list should consist in an
+#' association between the number of groups and a colour palette. For the
+#' missing number of groups, the `qualpalr` package will be used. Defaults
+#' to an empty list.
+#' @param continuous_colours A list of colours that will be used to colour the
+#' continuous metadata and the gene expression. The list should consist in an
+#' association between the name of the colour palette and a list of colours.
+#' To this list the following palettes will be automatically added: viridis,
+#' plasam, white-red and blue-red. Defaults to an empty list.
+#' @param max_n_colors The maximum number of colours used for discrete groups.
+#' Defaults to 40.
+#' @param verbose If TRUE, prints intermediate progress messages of the
+#' pipeline. Defaults to FALSE.
+#' @param compression_level The compression level used to save the expression
+#' matrix in the HDF5 format. Defaults to 7.
+#' @param chunk_size The chunk size used to store the expression matrix in the
+#' HDF5 format. It is recommended to use values between 10 and 1000, as they
+#' might improve the speed of reading the rows from the file. Defaults to 100.
+#' @param nthreads The number of threads used to perform the calculations. This
+#' parameter will be automatically passed to the `graph_test` function that
+#' will calculate the Moran's I test. For the clustering pipeline, if no
+#' parallel backend is already registered, the function will generate
+#' a PSOCK cluster with the number of threads specified. Defaults to 1.
+#'
+#' @return The function does not return anything, but it creates a folder which
+#' contains all necessary files to run the Starlng Shiny app.
+#' - `app.R` - the main file of the Shiny app.
+#' - `objects` - a folder that contains the following files:
+#'  - `monocle_object.qs` - the monocle object that was used to generate the app.
+#'  - `recommended_pseudotime.qs` - the recommended pseudotime values.
+#'  - `genes_info.csv` - a table with the gene information.
+#'  - `trajectory_ggplot.qs` - the ggplot object of the trajectory.
+#'  - `metadata.qs` - the metadata object.
+#'  - `diet_monocle_object.qs` - the monocle object with the diet information.
+#'  - `expression.h5` - the expression matrix in the HDF5 format.
+#'  - `colours.qs` - the colours object.
+#'
 #' @export
 starlng_write_app_monocle <- function(folder_path,
                               monocle_object,
@@ -345,7 +425,41 @@ starlng_write_app_monocle <- function(folder_path,
     qs::qsave(colour_list, file = colour_path)
 }
 
-
+#' Create Starlng Shiny app from a normalized gene expression matrix
+#'
+#' @description Runs the entire Starlng pipeline on a normalized gene expression
+#' matrix and generates a folder with all necessary files to run a Shiny app.
+#'
+#' @note For more details about the other parameters and the content of the
+#' shiny folder, consult the documentation of the `starlng_write_app_monocle`
+#' function.
+#'
+#' @param expression_matrix A normalized gene by cell expression matrix. The
+#' matrix should have the rownames and the colnames defined.
+#' @param metadata_df A data frame with cell metadata specific to the experiment.
+#' If NULL, the function will create a one-group metadata with the name
+#' "one_level".
+#' @param pca_embedding A matrix with the PCA embedding of the cells. If NULL,
+#' the function will calculate the PCA embedding while creating the monocle3
+#' object.
+#' @param umap_embedding A matrix with the UMAP embedding of the cells. If NULL,
+#' the function will calculate the UMAP embedding while creating the monocle3.
+#' @param folder_path Check `starlng_write_app_monocle` documentation.
+#' @param app_title_name Check `starlng_write_app_monocle` documentation.
+#' @param learn_graph_parameters Check `starlng_write_app_monocle` documentation.
+#' @param gene_filtering_function Check `starlng_write_app_monocle` documentation.
+#' @param clustering_parameters Check `starlng_write_app_monocle` documentation.
+#' @param ecc_threshold Check `starlng_write_app_monocle` documentation.
+#' @param freq_threshold Check `starlng_write_app_monocle` documentation.
+#' @param save_entire_monocle Check `starlng_write_app_monocle` documentation.
+#' @param discrete_colours Check `starlng_write_app_monocle` documentation.
+#' @param continuous_colours Check `starlng_write_app_monocle` documentation.
+#' @param max_n_colors Check `starlng_write_app_monocle` documentation.
+#' @param verbose Check `starlng_write_app_monocle` documentation.
+#' @param compression_level Check `starlng_write_app_monocle` documentation.
+#' @param chunk_size Check `starlng_write_app_monocle` documentation.
+#' @param nthreads Check `starlng_write_app_monocle` documentation.
+#'
 #' @export
 starlng_write_app_default <- function(folder_path,
                               expression_matrix,
@@ -412,6 +526,51 @@ starlng_write_app_default <- function(folder_path,
     )
 }
 
+#' Create Starlng Shiny app from a ClustAssess object
+#'
+#' @description Runs the entire Starlng pipeline on a normalized gene expression
+#' matrix togheter with the output of the ClustAssess automatic pipeline 
+#' and generates a folder with all necessary files to run a Shiny app.
+#'
+#' @note For more details about the other parameters and the content of the
+#' shiny folder, consult the documentation of the `starlng_write_app_monocle`
+#' function.
+#'
+#' @param expression_matrix A normalized gene by cell expression matrix. The
+#' matrix should have the rownames and the colnames defined.
+#' @param metadata_df A data frame with cell metadata specific to the experiment.
+#' If NULL, the function will create a one-group metadata with the name
+#' "one_level".
+#' @param clustassess_object The output of the automatic pipeline of the
+#' ClustAssess package.
+#' @param stable_feature_type The feature type that is chosen from the
+#' ClustAssess analysis.
+#' @param stable_feature_set_size The size of the feature set that is chosen
+#' from the ClustAssess analysis.
+#' @param stable_clustering_method The clustering method that is chosen from the
+#' ClustAssess analysis.
+#' @param stable_n_clusters The number of clusters that is chosen from the
+#' ClustAssess analysis. If NULL, the function will use all the clusters that
+#' are obtained. Defaults to NULL.
+#' @param use_all_genes If TRUE, uses all the genes in the expression matrix.
+#' If FALSE, uses only the stable feature set as determined by ClustAssess.
+#' Defaults to TRUE.
+#' @param folder_path Check `starlng_write_app_monocle` documentation.
+#' @param app_title_name Check `starlng_write_app_monocle` documentation.
+#' @param learn_graph_parameters Check `starlng_write_app_monocle` documentation.
+#' @param gene_filtering_function Check `starlng_write_app_monocle` documentation.
+#' @param clustering_parameters Check `starlng_write_app_monocle` documentation.
+#' @param ecc_threshold Check `starlng_write_app_monocle` documentation.
+#' @param freq_threshold Check `starlng_write_app_monocle` documentation.
+#' @param save_entire_monocle Check `starlng_write_app_monocle` documentation.
+#' @param discrete_colours Check `starlng_write_app_monocle` documentation.
+#' @param continuous_colours Check `starlng_write_app_monocle` documentation.
+#' @param max_n_colors Check `starlng_write_app_monocle` documentation.
+#' @param verbose Check `starlng_write_app_monocle` documentation.
+#' @param compression_level Check `starlng_write_app_monocle` documentation.
+#' @param chunk_size Check `starlng_write_app_monocle` documentation.
+#' @param nthreads Check `starlng_write_app_monocle` documentation.
+#'
 #' @export
 starlng_write_app_clustassess <- function(folder_path,
                                   expression_matrix,
@@ -486,6 +645,48 @@ starlng_write_app_clustassess <- function(folder_path,
     )
 }
 
+#' Create Starlng Shiny app from a ClustAssess object
+#'
+#' @description Runs the entire Starlng pipeline on a normalized gene expression
+#' matrix togheter with the content of the ClustAssess Shiny app
+#' and generates a folder with all necessary files to run a Shiny app.
+#'
+#' @note For more details about the other parameters and the content of the
+#' shiny folder, consult the documentation of the `starlng_write_app_monocle`
+#' function.
+#'
+#' @param expression_matrix A normalized gene by cell expression matrix. The
+#' matrix should have the rownames and the colnames defined.
+#' @param ca_app_folder The path of the folder containing the files associated
+#' with the ClustAssess Shiny app.
+#' @param stable_feature_type The feature type that is chosen from the
+#' ClustAssess analysis.
+#' @param stable_feature_set_size The size of the feature set that is chosen
+#' from the ClustAssess analysis.
+#' @param stable_clustering_method The clustering method that is chosen from the
+#' ClustAssess analysis.
+#' @param stable_n_clusters The number of clusters that is chosen from the
+#' ClustAssess analysis. If NULL, the function will use all the clusters that
+#' are obtained. Defaults to NULL.
+#' @param use_all_genes If TRUE, uses all the genes in the expression matrix.
+#' If FALSE, uses only the stable feature set as determined by ClustAssess.
+#' Defaults to TRUE.
+#' @param folder_path Check `starlng_write_app_monocle` documentation.
+#' @param app_title_name Check `starlng_write_app_monocle` documentation.`
+#' @param learn_graph_parameters Check `starlng_write_app_monocle` documentation.`
+#' @param gene_filtering_function Check `starlng_write_app_monocle` documentation.`
+#' @param clustering_parameters Check `starlng_write_app_monocle` documentation.`
+#' @param ecc_threshold Check `starlng_write_app_monocle` documentation.`
+#' @param freq_threshold Check `starlng_write_app_monocle` documentation.`
+#' @param save_entire_monocle Check `starlng_write_app_monocle` documentation.`
+#' @param discrete_colours Check `starlng_write_app_monocle` documentation.`
+#' @param continuous_colours Check `starlng_write_app_monocle` documentation.`
+#' @param max_n_colors Check `starlng_write_app_monocle` documentation.`
+#' @param verbose Check `starlng_write_app_monocle` documentation.
+#' @param compression_level Check `starlng_write_app_monocle` documentation.`
+#' @param chunk_size Check `starlng_write_app_monocle` documentation.
+#' @param nthreads Check `starlng_write_app_monocle` documentation.
+#'
 #' @export
 starlng_write_app_clustassess_app <- function(folder_path,
                                       ca_app_folder,

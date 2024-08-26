@@ -1,4 +1,18 @@
 
+#' Group the partitions by the number of clusters
+#' 
+#' @description This function groups the partitions by the number of clusters.
+#' The grouping can be done at each level of the nested list by keeping the
+#' hierarchy of parameters.
+#' 
+#' @param clustering_list A nested list of partitions. Each level is associated
+#' with values of a specific parameters. The last level contains the partitions.
+#' @param start_level The level at which the grouping should start. The default
+#' is 1.
+#' 
+#' @return A nested list of partitions grouped by the number of clusters.
+#' 
+#' @export
 group_by_clusters_general <- function(clustering_list, start_level = 1) {
     if (start_level > 1) {
         if (is.null(names(clustering_list))) {
@@ -45,6 +59,21 @@ group_by_clusters_general <- function(clustering_list, start_level = 1) {
     return(list(k = by_cluster_list))
 }
 
+#' Get the by-cluster consistency of configurations
+#' 
+#' @description This function calculates the Element-Centric Consistency (ECC)
+#' of the partitions that are grouped by the number of clusters.
+#' 
+#' @param by_cluster_list A nested list of partitions that are grouped by
+#' the number of clusters.
+#' @param order_logic Determines how to order the partitions associated with
+#' the same number of clusters. Can be either by frequency (most frequent first)
+#' or by the agreement (the partition which is the most similar with the others,
+#' first). Defaults to "agreement".
+#'
+#' @return A nested list with the partitions ordered by agreement / frequency
+#' and the overall ECC value.
+#' @export
 get_clusters_consistency <- function(by_cluster_list, order_logic = "agreement") {
     if (!("k" %in% names(by_cluster_list))) {
         for (sub_name in names(by_cluster_list)) {
@@ -107,6 +136,27 @@ get_all_configurations <- function(grouped_by_k_list,
     })))
 }
 
+#' Select the most stable configurations of parameters
+#'
+#' @description This function selects the most stable configuration of
+#' parameters using the overall ECC value. Firstly, it ranks the configurations
+#' based on the median and keep the upper half. Then it applies a second ranking
+#' based on the IQR and selects the configuration with the lowest IQR. The user
+#' can defined other functions, as long as they have the same monotonicity as
+#' the two functions mentioned above.
+#'
+#' @param grouped_by_k_list A nested list of configurations, where the last
+#' level contains the list of partitions grouped by the number of clusters.
+#' @param sep_char A character used to separate the configuration names.
+#' @param first_ranking_function A function used to rank the configurations
+#' and eliminate the lower half. The default is the median.
+#' @param second_ranking_function A function used to rank the configurations
+#' and select the most stable one. The default is the IQR.
+#'
+#' @return A list of the parameters associated with the most stable
+#' configuration.
+#'
+#' @export
 select_best_configuration <- function(grouped_by_k_list,
                                       sep_char = ";",
                                       first_ranking_function = median,
