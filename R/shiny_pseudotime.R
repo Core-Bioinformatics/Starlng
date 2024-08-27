@@ -184,7 +184,7 @@ server_cell_select_filter <- function(id) {
 
                     return(select_cells_by_gene_expr(
                         expression_matrix = read_gene_from_dense_h5(
-                            gene_name = gene_list,
+                            gene_names = gene_list,
                             matrix_h5_path = file.path("objects", "expression.h5"),
                             index_genes = env$genes[gene_list],
                             check_intersect = FALSE,

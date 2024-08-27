@@ -85,9 +85,6 @@ Defaults to TRUE.}
 \item{chunk_size}{Check \code{starlng_write_app_monocle} documentation.}
 
 \item{nthreads}{Check \code{starlng_write_app_monocle} documentation.}
-
-\item{expression_matrix}{A normalized gene by cell expression matrix. The
-matrix should have the rownames and the colnames defined.}
 }
 \description{
 Runs the entire Starlng pipeline on a normalized gene expression

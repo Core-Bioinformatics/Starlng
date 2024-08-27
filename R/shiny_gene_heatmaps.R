@@ -200,7 +200,7 @@ server_pseudobulk_heatmap <- function(id, metadata_name) {
                     function(module) {
                         cell_info <- voting_scheme(
                             read_gene_from_dense_h5(
-                                gene_name = module,
+                                gene_names = module,
                                 matrix_h5_path = file.path("objects", "expression.h5"),
                                 index_genes = env$genes[module],
                                 check_intersect = FALSE
@@ -302,7 +302,7 @@ server_pseudobulk_heatmap <- function(id, metadata_name) {
                     content = function(file) {
                         save_filetypes[[input$filetype_heatmap]](file, width = input$width_heatmap, height = input$height_heatmap)
                         ComplexHeatmap::draw(htmp_obj())
-                        dev.off()
+                        grDevices::dev.off()
                     }
                 )
             })
@@ -372,7 +372,7 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                             sub_module_list,
                             function(module) {
                                 gene_matrix <- read_gene_from_dense_h5(
-                                    gene_name = module,
+                                    gene_names = module,
                                     matrix_h5_path = file.path("objects", "expression.h5"),
                                     index_genes = env$genes[module],
                                     check_intersect = FALSE
@@ -453,7 +453,7 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                     content = function(file) {
                         save_filetypes[[input$filetype_heatmap]](file, width = input$width_heatmap, height = input$height_heatmap)
                         ComplexHeatmap::draw(htmp_obj(), merge_legend = TRUE)
-                        dev.off()
+                        grDevices::dev.off()
                         gc()
                     }
                 )

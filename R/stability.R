@@ -54,6 +54,7 @@ group_by_clusters_general <- function(clustering_list, start_level = 1) {
 
     k_values <- names(by_cluster_list)
     k_values <- stringr::str_sort(k_values, numeric = TRUE)
+    
     by_cluster_list <- by_cluster_list[k_values]
 
     return(list(k = by_cluster_list))
@@ -85,7 +86,7 @@ get_clusters_consistency <- function(by_cluster_list, order_logic = "agreement")
     k_values <- names(by_cluster_list$k)
     by_cluster_list$k <- foreach::foreach (
         k_list = by_cluster_list$k,
-        .final = function(x) setNames(x, k_values)
+        .final = function(x) stats::setNames(x, k_values)
     ) %dopar% { 
         ClustAssess::merge_partitions(k_list, order_logic = order_logic)
     }
@@ -109,8 +110,8 @@ get_clusters_consistency <- function(by_cluster_list, order_logic = "agreement")
 get_all_configurations <- function(grouped_by_k_list,
                                    prefix = c(),
                                    sep_char = ";",
-                                   first_summary_function = median,
-                                   second_summary_function = function(x) { quantile(x, 0.75) - quantile(x, 0.25) }) {
+                                   first_summary_function = stats::median,
+                                   second_summary_function = function(x) { stats::quantile(x, 0.75) - stats::quantile(x, 0.25) }) {
     sublist_names <- names(grouped_by_k_list)
 
     if ("overall_ecc" %in% sublist_names) {
@@ -159,8 +160,8 @@ get_all_configurations <- function(grouped_by_k_list,
 #' @export
 select_best_configuration <- function(grouped_by_k_list,
                                       sep_char = ";",
-                                      first_ranking_function = median,
-                                      second_ranking_function = function(x) { quantile(x, 0.75) - quantile(x, 0.25) }) {
+                                      first_ranking_function = stats::median,
+                                      second_ranking_function = function(x) { stats::quantile(x, 0.75) - stats::quantile(x, 0.25) }) {
     all_configurations <- get_all_configurations(
         grouped_by_k_list,
         c(),

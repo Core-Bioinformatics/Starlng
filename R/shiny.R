@@ -309,7 +309,7 @@ starlng_write_app_monocle <- function(folder_path,
     autocorr_result$average_expression_nonzero <- autocorr_result$average_expression / autocorr_result$n_expressed_cells
     autocorr_result$average_expression <- autocorr_result$average_expression / ncol(expr_matrix)
     autocorr_result$percent_expressed_cells <- autocorr_result$n_expressed_cells / ncol(expr_matrix)
-    write.csv(autocorr_result, file = info_gene_path)
+    utils::write.csv(autocorr_result, file = info_gene_path)
 
     # trajectory ggplot object
     if (verbose) print("Writing the trajectory ggplot object...")
@@ -369,7 +369,7 @@ starlng_write_app_monocle <- function(folder_path,
         created_cluster <- FALSE
         if (nthreads > 1 && foreach::getDoParWorkers() == 1) {
             created_cluster <- TRUE
-            par_cluster <- parallel::makePSOCKCluster(nthreads)
+            par_cluster <- parallel::makePSOCKcluster(nthreads)
 
             doParallel::registerDoParallel(par_cluster)
         }
@@ -397,7 +397,7 @@ starlng_write_app_monocle <- function(folder_path,
             stb_df[[paste0("stable_modules_", k)]] <- factor(stb_clust[[k]]$partitions[[1]]$mb)
         }
 
-        write.csv(stb_df, file = clusters_path, row.names = FALSE, quote = FALSE)
+        utils::write.csv(stb_df, file = clusters_path, row.names = FALSE, quote = FALSE)
     }
 
     # expression matrix
@@ -655,8 +655,6 @@ starlng_write_app_clustassess <- function(folder_path,
 #' shiny folder, consult the documentation of the `starlng_write_app_monocle`
 #' function.
 #'
-#' @param expression_matrix A normalized gene by cell expression matrix. The
-#' matrix should have the rownames and the colnames defined.
 #' @param ca_app_folder The path of the folder containing the files associated
 #' with the ClustAssess Shiny app.
 #' @param stable_feature_type The feature type that is chosen from the

@@ -1,3 +1,12 @@
+#' Update the partition of the Monocle object
+#' 
+#' @description This function updates the partition of the Monocle object,
+#' which is used for tasks such as trajectory analysis.
+#' 
+#' @param mon_obj The Monocle object.
+#' @param new_partition The new partition to be updated.
+#' 
+#' @return The Monocle object with the updated partition.
 update_mononcle_partition <- function(mon_obj, new_partition) {
     new_partition <- factor(as.numeric(factor(new_partition)))
 
@@ -5,12 +14,26 @@ update_mononcle_partition <- function(mon_obj, new_partition) {
         mon_obj <- monocle3::cluster_cells(mon_obj)
     }
 
-    mon_obj@clusters@listData$UMAP$partitions <- setNames(new_partition, colnames(mon_obj))
-    mon_obj@clusters@listData$UMAP$clusters <- setNames(new_partition, colnames(mon_obj))
+    mon_obj@clusters@listData$UMAP$partitions <- stats::setNames(new_partition, colnames(mon_obj))
+    mon_obj@clusters@listData$UMAP$clusters <- stats::setNames(new_partition, colnames(mon_obj))
 
     return(mon_obj)
 }
 
+#' Subset the Monocle object by a trajectory
+#' 
+#' @description This function subsets the Monocle object based on a subgraph
+#' of the inferrred trajectory. The subgraph is defined using start and end
+#' points, defined by cells.
+#' 
+#' @param mon_obj A monocle object.
+#' @param start_cells A list of cells names that define the start of the
+#' selected trajectory. If NULL, no subsetting is performed. Defaults to NULL.
+#' @param end_cells A list of cells names that define the end of the
+#' selected trajectory. If NULL, no subsetting is performed. Defaults to NULL.
+#' 
+#' @return The Monocle object subsetted by the trajectory.
+#' @export
 subset_monocle_by_trajectory <- function(mon_obj, start_cells = NULL, end_cells = NULL) {
     if (is.null(start_cells) || is.null(end_cells)) {
         return(mon_obj)
@@ -74,16 +97,39 @@ subset_monocle_by_trajectory <- function(mon_obj, start_cells = NULL, end_cells 
     }
 
     # refactor the special fields `clusters` and `partitions`
-    mon_obj@clusters@listData$UMAP$clusters <- setNames(factor(as.numeric(monocle3::clusters(mon_obj))), colnames(mon_obj))
+    mon_obj@clusters@listData$UMAP$clusters <- stats::setNames(factor(as.numeric(monocle3::clusters(mon_obj))), colnames(mon_obj))
     levels(mon_obj@clusters@listData$UMAP$clusters) <- seq_len(nlevels(mon_obj@clusters@listData$UMAP$clusters))
-    mon_obj@clusters@listData$UMAP$partitions <- setNames(factor(as.numeric(monocle3::partitions(mon_obj))), colnames(mon_obj))
+    mon_obj@clusters@listData$UMAP$partitions <- stats::setNames(factor(as.numeric(monocle3::partitions(mon_obj))), colnames(mon_obj))
     levels(mon_obj@clusters@listData$UMAP$partitions) <- seq_len(nlevels(mon_obj@clusters@listData$UMAP$partitions))
 
     return(mon_obj)
 }
 
-# the code follows the logic from the monocle3 repository https://github.dev/cole-trapnell-lab/monocle3/blob/master/R/learn_graph.R
-# the only addition is the number of nodes per log 10 cells that can be schosen by the user (not accessible via monocle)
+#' Learn the graph of the Monocle object
+#' 
+#' @description This function follows the logic of the `learn_graph` function
+#' from the monocle3 package. The main difference consists in providing more
+#' flexibility to the user, such as the number of nodes per log10 cells and
+#' the metadata used as partition.
+#' 
+#' @param mon_obj The Monocle object.
+#' @param nodes_per_log10_cells The number of trajectory nodes created per
+#' log10 cells. Defaults to 30.
+#' @param learn_graph_controls A list of control parameters, as defined in the
+#' `learn_graph` function from Monocle. Defaults to list(eps = 1e-5,
+#' maxiter = 100).
+#' @param use_partition A logical value indicating if the partition should be
+#' used for learning the graph. Defaults to FALSE.
+#' @param use_closed_loops A logical value indicating if circular paths can be
+#' formed in the trajectory graph. Defaults to FALSE.
+#' @param verbose Parameter that is passed to the `learn_graph` function and
+#' prints the progress.
+#' @param metadata_for_nodes The metadata column that should be used to
+#' update the partition of the Monocle object. This is used when `use_partition`
+#' is set to TRUE. Defaults to NULL, meaning the partition is not updated.
+#' 
+#' @return The Monocle object with the learned graph.
+#' @export
 custom_learn_graph <- function(mon_obj,
                                nodes_per_log10_cells = 30,
                                learn_graph_controls = list(
@@ -125,8 +171,6 @@ custom_learn_graph <- function(mon_obj,
 
     if (use_partition) {
         learn_graph_controls$ncenter <- NULL
-
-        
     }
 
     return(monocle3::learn_graph(
@@ -138,6 +182,25 @@ custom_learn_graph <- function(mon_obj,
     ))
 }
 
+#' Order the cells by pseudotime
+#' 
+#' @description This function follows the logic of the `order_cells` function
+#' from the monocle3 package. The main difference consists in allowing the user
+#' to define both the start and the end points of the trajectory. In this case,
+#' the monocle object is subsetted.
+#' 
+#' @param monocle_object A monocle object.
+#' @param start_cells A list of cells names that define the start of the
+#' ordering. If NULL, the end_cells must be provided. Defaults to NULL.
+#' @param end_cells A list of cells names that define the end of the ordering.
+#' If NULL, the start_cells must be provided. If end_cells is not NULL and
+#' start_cells is not NULL, subsetting is performed. If end_cells is not NULL
+#' and start_cells is NULL, the ordering will be reversed. Defaults to NULL.
+#' 
+#' @return A named vector with the pseudotime values. In the case of subsetting,
+#' the cells that are not part of the inferred subtrajectory will be assigned
+#' the NA value.
+#' @export
 custom_pseudotime_ordering <- function(monocle_object,
                                        start_cells = NULL,
                                        end_cells = NULL) {
@@ -174,7 +237,30 @@ custom_pseudotime_ordering <- function(monocle_object,
     return(entire_psd)
 }
 
-get_pseudotime_recommendation <- function(monocle_object) {
+#' Recommend a pseudotime ordering
+#' 
+#' @description This function provides a recommendation of a pseudotime ordering
+#' based on the metadata available in the monocle object. The recommendation is
+#' done by selecting the subgroup of a metadata column that leads to the highest
+#' interquartile range of the pseudotime values (or any criteria the user
+#' provides). This is translated as an ordering that has the highest
+#' variability.
+#'
+#' @param monocle_object A monocle object.
+#' @param recommendation_criteria A function that defines the criteria of
+#' determining the best pseudotime ordering. The function should take the
+#' pseudotime values as input and return a numeric value. The function should
+#' be monotonically increasing. Defaults to a function that returns the
+#' interquartile range.
+#'
+#' @return A list that contains the recommended metadata column, the subgroup
+#' and the pseudotime values.
+#' @export
+get_pseudotime_recommendation <- function(monocle_object,
+                                          recommendation_criteria = function(pseudotime_values) {
+                                              fvn <- stats::fivenum(pseudotime_values)
+                                              fvn[4] - fvn[2]
+                                          }) {
     discrete_groups <- list()
     for (mtd_name in colnames(monocle_object@colData)) {
         if (inherits(monocle_object@colData[[mtd_name]], c("factor", "character"))) {
@@ -183,7 +269,7 @@ get_pseudotime_recommendation <- function(monocle_object) {
     }
 
     umap_df <- monocle_object@int_colData$reducedDims$UMAP
-    current_iqr <- 0
+    best_criteria <- NULL
 
     for (mtd_name in names(discrete_groups)) {
         for (mtd_group in names(discrete_groups[[mtd_name]])) {
@@ -199,11 +285,10 @@ get_pseudotime_recommendation <- function(monocle_object) {
             )
             monocle_object <- monocle3::order_cells(monocle_object, root_cells = filtered_cells)
 
-            fvn <- fivenum(monocle3::pseudotime(monocle_object))
-            iqr_psd <- fvn[4] - fvn[2]
+            criteria_value <- recommendation_criteria(monocle3::pseudotime(monocle_object))
 
-            if (iqr_psd > current_iqr) {
-                current_iqr <- iqr_psd
+            if (is.null(best_criteria) && criteria_value > best_criteria) {
+                best_criteria <- criteria_value
                 recommended_mtd_group <- mtd_group
                 recommended_mtd_name <- mtd_name
                 recommended_pseudotime <- monocle3::pseudotime(monocle_object)

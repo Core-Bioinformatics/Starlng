@@ -1,4 +1,34 @@
 #' @importFrom dplyr %>% .data
+NULL
+
+#' Gene Expression voting scheme
+#' 
+#' @description This function performs a voting scheme to identify cells that
+#' are expressing one or multiple genes above a given threshold. The function
+#' allows the user to introduce a factor of relaxation in the voting scheme
+#' by setting the minimum number of genes that should be coexpressed in a cell
+#' for it to be considered. For the obtained set of cells, the function
+#' summarizes the expression values of the genes using a user-defined function.
+#' 
+#' @param expression_matrix The gene by cell expression matrix to be used. The
+#' matrix should have defined rownames and colnames.
+#' @param genes A vector with the genes to be used for the voting scheme.
+#' @param thresh_percentile The percentile to be used as threshold for the
+#' expression values to select the cells associated with each gene. If set to 0,
+#' the threshold will be the value defined in `thresh_value`. Defaults to 0.25.
+#' @param thresh_value The value to be used as threshold for the expression
+#' values to select the cells associated with each gene. Defaults to 0.
+#' @param n_coexpressed_thresh The number of genes that should be coexpressed
+#' in a cell for it to be considered as selected. Defaults to the number of
+#' provided genes.
+#' @param summary_function A function that takes as argument a numeric vector
+#' and summarises it into a single value. If set to NULL, the function will
+#' return a factor with the selected cells. Defaults to NULL.
+#' 
+#' @return A list with the information of the cells selected by the voting
+#' scheme. If a summary function is provided, the list will contain the summary
+#' values for each cell.
+#' @export
 voting_scheme <- function(expression_matrix,
                           genes,
                           thresh_percentile = 0.25,
@@ -26,7 +56,7 @@ voting_scheme <- function(expression_matrix,
         thresh_value <- sapply(genes, function(gene) {
             non_zero_values <- expression_matrix[gene, ]
             non_zero_values <- non_zero_values[non_zero_values > 0]
-            quantile(non_zero_values, probs = thresh_percentile)
+            stats::quantile(non_zero_values, probs = thresh_percentile)
         })
     } else {
         thresh_value <- rep(thresh_value[1], length(genes))
@@ -57,42 +87,51 @@ voting_scheme <- function(expression_matrix,
     return(cell_info)
 }
 
+#' Select cells by gene expression
+#' 
+#' @description This function filters from the dataset a group of cells which
+#' are expressing a set of genes above a given threshold. For this, the voting
+#' scheme will be applied.
+#' 
+#' @param expression_matrix The gene by cell expression matrix to be used.
+#' @param genes A vector with the names of the genes to be used for the
+#' filtering. 
+#' @param thresh_percentile The percentile to be used as threshold for the
+#' expression values to select the cells associated with each gene. If set to 0,
+#' the threshold will be the value defined in `thresh_value`. Defaults to 0.25.
+#' @param thresh_value The value to be used as threshold for the expression
+#' values to select the cells associated with each gene. Defaults to 0.
+#' @param n_coexpressed_thresh The number of genes that should be coexpressed
+#' in a cell for it to be considered as selected. Defaults to the number of
+#' provided genes.
+#' 
+#' @return A list of cells that are selected using the voting scheme.
+#' @export
 select_cells_by_gene_expr <- function(expression_matrix,
                                       genes,
                                       thresh_percentile = 0.25,
                                       thresh_value = 0,
                                       n_coexpressed_thresh = length(genes)) {
-    # genes <- intersect(genes, rownames(expression_matrix))
-
-    # if (length(genes) == 0) {
-    #     stop("No genes found in the expression matrix")
-    # }
-
-    # expression_matrix <- expression_matrix[genes, ]
-    # n_coexpressed <- max(min(n_coexpressed, nrow(expression_matrix)), 1)
-
-    # if (thresh_percentile > 0) {
-    #     thresh_value <- sapply(genes, function(gene) {
-    #         quantile(sum(expression_matrix[gene, ]), probs = thresh_percentile)
-    #     })
-    # } else {
-    #     thresh_value <- rep(thresh_value[1], length(genes))
-    # }
-
-    # mask_expressed <- expression_matrix > thresh_value
-
-    # index_cells <- which(colSums(mask_expressed) >= n_coexpressed_thresh)
-
-    # if (is.null(colnames(expression_matrix))) {
-    #     return(index_cells)
-    # }
     voting_scheme_results <- voting_scheme(expression_matrix, genes, thresh_percentile, thresh_value, n_coexpressed_thresh)
     index_cells <- which(voting_scheme_results == "selected")
 
     return(names(voting_scheme_results)[index_cells])
 }
 
-# metadata combinations is a list metadata column - metadata unique values
+#' Select cells by metadata
+#' 
+#' @description This function filters from the dataset a group of cells which
+#' is defined as a combination of filters determined by multiple metadata.
+#' 
+#' @param metadata_df A dataframe with the metadata information. The rows of
+#' the dataframe should be the cells and the columns the metadata information.
+#' @param metadata_combinations A list with the metadata columns and the unique
+#' groups of the metadata that should be used to filter the cells. The names of
+#' the list should be in the columns of the `metadata_df`.
+#' 
+#' @return The list of cells that are defined by the intersection of provided
+#' groups.
+#' @export
 select_cells_by_metadata <- function(metadata_df, metadata_combinations) {
     mtd_names <- intersect(names(metadata_combinations), colnames(metadata_df))
 
@@ -115,6 +154,25 @@ select_cells_by_metadata <- function(metadata_df, metadata_combinations) {
     return(rownames(metadata_df))
 }
 
+#' Remove outlier cells from a group
+#' 
+#' @description This function removes the outlier cells from a group based on
+#' the distance patterns, as observed on an UMAP embedding. The function
+#' considers a point to be outlier if the distance to the geometric median
+#' of the group is above a given threshold determined by a quantile.
+#' 
+#' @param cell_names A vector with the names of the cells defining the group.
+#' @param umap_emb A matrix with the UMAP embedding of the cells. The matrix
+#' should have defined the rownames as the cell names.
+#' @param percentile_threshold The percentile to be used as threshold for the
+#' distance to the geometric median. This value will be used to calculate
+#' the quantile. Defaults to 0.75.
+#' @param gmedian_point The geometric median point of the group. If NULL, the
+#' function will calculate this point. Defaults to NULL.
+#' 
+#' @return A vector with the names of the cells that are not considered
+#' outliers.
+#' @export
 remove_outlier_cells <- function(cell_names, umap_emb, percentile_threshold = 0.75, gmedian_point = NULL) {
     if (is.null(rownames(umap_emb))) {
         rownames(umap_emb) <- seq_len(nrow(umap_emb))
@@ -134,11 +192,25 @@ remove_outlier_cells <- function(cell_names, umap_emb, percentile_threshold = 0.
         (umap_emb[, 2] - gmedian_point[1, 2]) ^ 2
     ) ^ 0.5
 
-    threshold_distance <- quantile(distance_cells_gmedian, probs = percentile_threshold)
+    threshold_distance <- stats::quantile(distance_cells_gmedian, probs = percentile_threshold)
 
     return(cell_names[distance_cells_gmedian <= threshold_distance])
 }
 
+#' Find central points of a group
+#' 
+#' @description Given a population of cells and a UMAP embedding, this function
+#' attempts to identify a group of cells that are located in the centre of this
+#' group. For this, the function calculates the geometric median of the UMAP
+#' and then calculates the nearest points to this point.
+#' 
+#' @param cell_group A vector with the names of the cells to be analysed.
+#' @param umap_embedding A matrix with the UMAP embedding of the cells. The
+#' matrix should have defined the rownames as the cell names.
+#' @param n_points The number of points to be selected as the central points.
+#' 
+#' @return A vector with the names of the cells that are considered central.
+#' @export
 filter_central_cells_from_group <- function(cell_group, umap_embedding, n_points = 5) {
     if (!(all(cell_group %in% rownames(umap_embedding)))) {
         stop("Some cells were not found in the UMAP embedding")
@@ -168,7 +240,7 @@ filter_central_cells_from_group <- function(cell_group, umap_embedding, n_points
             break
         }
 
-        threshold_distance <- quantile(distance_cells_gmedian, probs = threshold_mid)
+        threshold_distance <- stats::quantile(distance_cells_gmedian, probs = threshold_mid)
         index_cells <- which(distance_cells_gmedian <= threshold_distance)
 
         if (length(index_cells) <= n_points) {

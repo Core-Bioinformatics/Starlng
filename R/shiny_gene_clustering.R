@@ -207,7 +207,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                     # TODO change this after you reach a conclusion about the best option for the input matrix
                     embedding = get_feature_loading(
                         expr_matrix = read_gene_from_dense_h5(
-                            gene_name = filtered_genes(),
+                            gene_names = filtered_genes(),
                             matrix_h5_path = file.path("objects", "expression.h5"),
                             index_genes = env$genes[filtered_genes()],
                             check_intersect = FALSE
@@ -425,7 +425,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                             paste0(input$tabset, "_gene_clusters.csv")
                         },
                         content = function(file) {
-                            write.csv(df, file, row.names = TRUE)
+                            utils::write.csv(df, file, row.names = TRUE)
                         }
                     )
                 })

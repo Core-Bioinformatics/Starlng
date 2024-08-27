@@ -95,7 +95,7 @@ server_module_umap <- function(id) {
                 summ_list <- lapply(names(gene_modules), function(gene_module) {
                     gc()
                     gene_matrix <- read_gene_from_dense_h5(
-                        gene_name = gene_modules[[gene_module]],
+                        gene_names = gene_modules[[gene_module]],
                         matrix_h5_path = file.path("objects", "expression.h5"),
                         index_genes = env$genes[gene_modules[[gene_module]]],
                         check_intersect = FALSE

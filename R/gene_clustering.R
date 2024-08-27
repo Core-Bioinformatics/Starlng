@@ -1,6 +1,20 @@
 #' @importFrom foreach %dopar% %do% %:%
-#' @importFrom doFuture %dofuture%
+NULL
 
+#' Parallel NN indexing
+#' 
+#' @description This function provides a parallel approach of finding the
+#' nearest neighbours of each points on a given embedding. The parallelisation
+#' is done by splitting the data into chunks and running the `RANN::nn2`
+#' function on each chunk in parallel.
+#' 
+#' @param embedding The embedding matrix where each row represents a point
+#' and each column a dimension.
+#' @param k The number of nearest neighbours to be found.
+#' 
+#' @return A matrix where each row contains the indices of the k-nearest
+#' neighbours of the corresponding point.
+#' @export
 parallel_nn2_idx <- function(embedding, k) {
     ncores <- foreach::getDoParWorkers()
 
@@ -145,9 +159,26 @@ community_detection_worker <- function(shared_adj_object,
     mb$membership
 }
 
+#' Community detection wrapper
+#' 
+#' @description This function is a simplified version of the `clustering_pipeline`.
+#' It starts with an already-generated adjacency matrix and applied the leiden
+#' algorithm to identify the clusters. The details of how the algorithm is run
+#' are the same as in the `clustering_pipeline` function.
+#' 
+#' @param adj_object The adjacency matrix to be used. The matrix should be
+#' square and should have defined rownames.
+#' @param resolutions Check the `clustering_pipeline` documentation.
+#' @param number_iterations Check the `clustering_pipeline` documentation.
+#' @param seeds Check the `clustering_pipeline` documentation.
+#' @param graph_type Check the `clustering_pipeline` documentation.
+#' @param memory_log_file Check the `clustering_pipeline` documentation.
+#' 
+#' @return A list of lists containing the clusters found for each combination
+#' of number of neighbours and quality functions.
+#' @export
 community_detection_master <- function(adj_object,
                                        resolutions,
-                                       quality_functions,
                                        number_iterations,
                                        seeds,
                                        graph_type = "snn",
@@ -205,6 +236,49 @@ community_detection_master <- function(adj_object,
     ))
 }
 
+#' Community detection pipeline
+#' 
+#' @description This function applies the PhenoGraph pipeline given an
+#' embedding matrix. The pipeline creates the exact nearest-neighbour graph
+#' using the RANN package, then applies the Leiden algorithm to find the
+#' clusters. The pipeline can be run multiple times while changing the random
+#' seed, to ensure the robustness of the resulting clusters.
+#' 
+#' @param embedding The embedding matrix where each row represents a point
+#' and each column a dimension.
+#' @param n_neighbours A vector of integers representing the number of number
+#' of neighbours to be used to build the adjacency graph.
+#' @param graph_type The type of graph. Can be either "nn" - directed unweighted
+#' graph or "snn" - undirected weighted graph, where the weights are calculated
+#' using the JSI score.
+#' @param prune_value The value used to prune the edges of the graph. If the
+#' value is negative, the function will determine the highest pruning value
+#' that will keep the graph connected. Defaults to -1.
+#' @param resolutions A list of vectors representing the resolution parameters
+#' used in the community detection algorithm. Each name of the list is
+#' associated with a quality function. The values of the list are the resolution
+#' parameters to be used. The available choices in terms of quality functions
+#' are "RBConfigurationVertexPartition", "RBERVertexPartition" and
+#' "ModularityVertexPartition".
+#' @param number_iterations How many iterations the Leiden algorithm should
+#' run. Defaults to 5.
+#' @param seeds A vector of integers representing the random seeds to be used
+#' in the community detection algorithm. If NULL, the function will generate
+#' the seeds based on the number of repetitions. Defaults to NULL.
+#' @param number_repetitions The number of repetitions the community detection
+#' pipeline should run. Defaults to 100.
+#' @param merge_identical_partitions Logical indicating if the function should
+#' merge the partitions that are identical and group them by the number of
+#' clusters. Defaults to FALSE.
+#' @param memory_log_file The path to the file where the memory usage of the
+#' function should be logged. Defaults to NULL.
+#' 
+#' @return A list of lists containing the clusters found for each combination
+#' of number of neighbours and quality functions. If `merge_identical_partitions`
+#' is set to TRUE, the last level will contain the partitions grouped by the
+#' number of clusters, alongside with their overall Element-Centric Consistency
+#' (ECC) score.
+#' @export
 clustering_pipeline <- function(embedding,
                                 n_neighbours = seq(from = 5, to = 50, by = 5),
                                 graph_type = "snn",

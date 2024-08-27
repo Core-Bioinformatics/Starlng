@@ -118,8 +118,20 @@
 
 #   }
 
-
-# keep only the trajectory graph and the information that is needed for that
+#' Diet Monocle object
+#' 
+#' @description This function simplifies the structure of the Monocle object.
+#' The purpose is to create a lightweight object that can be used in the
+#' context of the Shiny application. The resulting object will only contain
+#' the needed information to perform the pseudotime ordering. THerefore,
+#' this function removes information such as: the expression matrices, the
+#' auxiliary data related to the dimensionality reduction and the clustering
+#' and the metadata columns.
+#' 
+#' @param mon_obj Monocle object.
+#' 
+#' @return Diet Monocle object.
+#' @export
 diet_monocle_object <- function(mon_obj) {
     mask <- rep(TRUE, nrow(mon_obj) * ncol(mon_obj))
     # remove all count information

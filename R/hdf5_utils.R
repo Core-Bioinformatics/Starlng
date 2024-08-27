@@ -1,4 +1,25 @@
 
+#' Read expression matrix from a dense HDF5 file
+#' 
+#' @description This function read specific rows, associated with some genes,
+#' from a dense matrix stored in a HDF5 file.
+#' 
+#' @param gene_names List of names of genes to be read.
+#' @param matrix_h5_path Path to the HDF5 file where the expression matrix
+#' is stored. The file must contain the following fields:
+#' - genes: the names of the genes in the matrix.
+#' - cells: the names of the cells in the matrix.
+#' - expression_matrix: the expression matrix
+#' @param index_genes Named vector where the names are the genes and the
+#' values the index of the row associated with a gene. If NULL, the function
+#' will calculate automatically this index. Defaults to NULL.
+#' @param check_intersect Logical indicating if the function should check if
+#' all the provided genes are present in the matrix. Defaults to TRUE.
+#' @param add_rownames Logical indicating if the function should add the cell
+#' names as column names for the extracted matrix. Defaults to FALSE.
+#' 
+#' @return The expression matrix having the requested genes as rows.
+#' @export
 read_gene_from_dense_h5 <- function(gene_names,
                                     matrix_h5_path,
                                     index_genes = NULL,
@@ -36,13 +57,36 @@ read_gene_from_sparse_h5 <- function() {
 
 }
 
-
+#' Write expression matrix to a dense HDF5 file
+#' 
+#' @description This function writes a expression matrix to a HDF5 file in a
+#' dense format. The created file will contain three fields:
+#' - genes: the names of the genes in the matrix.
+#' - cells: the names of the cells in the matrix.
+#' - expression_matrix: the expression matrix
+#' 
+#' @param expression_matrix The expression matrix to be written. The matrix
+#' should have defined rownames and colnames. If they are not defined, they
+#' will be generated as `gene_{index}` and `cell_{index}` respectively.
+#' @param file_path The path to the HDF5 file where the matrix will be stored.
+#' @param compression_level The compression level to be used. Defaults to 7.
+#' @param chunk_size The size of the chunks to be used. Defaults to 100.
+#' @param all_at_once Logical indicating if the writing process will be done
+#' by providing the entire matrix or by writing chunks of the matrix. It is
+#' recommended to write the entire matrix at once, as no noticeable speedup
+#' is observed in the other case. Defaults to TRUE.
+#' @param garbage_thresh The threshold, measured GB, to trigger a garbage
+#' collection while writing the matrix by chunks.
+#' 
+#' @return The function does not return anything. It will create the HDF5 file
+#' with the matrix stored in it.
+#' @export
 write_gene_matrix_dense_h5 <- function(expression_matrix,
-                                    file_path,
-                                    compression_level = 7,
-                                    chunk_size = 100,
-                                    all_at_once = TRUE,
-                                    garbage_thresh = 2) {
+                                       file_path,
+                                       compression_level = 7,
+                                       chunk_size = 100,
+                                       all_at_once = TRUE,
+                                       garbage_thresh = 2) {
 
     if (file.exists(file_path)) {
         warning("Overwriting existing file. Waiting for 5 seconds...")
@@ -87,10 +131,10 @@ write_gene_matrix_dense_h5 <- function(expression_matrix,
         start <- (i - 1) * chunk_size + 1
         end <- min(i * chunk_size, ngenes)
         written_mat <- expression_matrix[start:end, ]
-        if (garbage_thresh > 0) garbage_sum <- garbage_sum + object.size(written_mat) / 1024^3
+        if (garbage_thresh > 0) garbage_sum <- garbage_sum + utils::object.size(written_mat) / 1024^3
         if (inherits(written_mat, "dgCMatrix")) {
             written_mat <- as.matrix(written_mat)
-            if (garbage_thresh > 0) garbage_sum <- garbage_sum + object.size(written_mat) / 1024^3
+            if (garbage_thresh > 0) garbage_sum <- garbage_sum + utils::object.size(written_mat) / 1024^3
         }
         if (garbage_thresh > 0 && garbage_sum > garbage_thresh) {
             gc()

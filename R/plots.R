@@ -285,7 +285,7 @@ plot_umap_gene_shiny <- function(shiny_env,
                                  colourbar_width = 50,
                                  continuous_colors = NULL) {
     gene_matrix <- read_gene_from_dense_h5(
-        gene_name = gene_name,
+        gene_names = gene_name,
         matrix_h5_path = file.path("objects", "expression.h5"),
         index_genes = shiny_env$genes[gene_name],
         check_intersect = FALSE
@@ -509,7 +509,7 @@ generate_cell_heatmap <- function(expression_matrix,
 
         matrix_convolved <- matrix(0, nrow = nrow(expression_matrix), ncol = ncol(expression_matrix) + k_smooth - 1)
         for (i in seq_len(nrow(expression_matrix))) {
-            matrix_convolved[i, ] <- convolve(expression_matrix[i, ], weights, type = "open")
+            matrix_convolved[i, ] <- stats::convolve(expression_matrix[i, ], weights, type = "open")
         }
         matrix_convolved <- matrix_convolved[, -seq_len(k_smooth / 2), drop = FALSE]
         matrix_convolved <- matrix_convolved[, seq_len(ncol(expression_matrix)), drop = FALSE]

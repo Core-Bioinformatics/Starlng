@@ -132,11 +132,11 @@ prepare_session <- function(reactive_dim, height_ratio = 0.7) {
     if (!file.exists(moran_path)) {
         stop("`objects/genes_info.csv` file not found")
     }
-    assign("moran_df", read.csv(moran_path, row.names = 1), envir = env)
+    assign("moran_df", utils::read.csv(moran_path, row.names = 1), envir = env)
 
     stable_modules_path <- file.path("objects", "stable_modules.csv")
     if (file.exists(stable_modules_path)) {
-        pre_stable_modules <- read.csv(stable_modules_path, row.names = 1)
+        pre_stable_modules <- utils::read.csv(stable_modules_path, row.names = 1)
         for (i in colnames(pre_stable_modules)) {
             pre_stable_modules[, i] <- factor(pre_stable_modules[, i])
         }

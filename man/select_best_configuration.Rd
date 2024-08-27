@@ -7,9 +7,10 @@
 select_best_configuration(
   grouped_by_k_list,
   sep_char = ";",
-  first_ranking_function = median,
+  first_ranking_function = stats::median,
   second_ranking_function = function(x) {
-     quantile(x, 0.75) - quantile(x, 0.25)
+     stats::quantile(x, 0.75) -
+    stats::quantile(x, 0.25)
  }
 )
 }
