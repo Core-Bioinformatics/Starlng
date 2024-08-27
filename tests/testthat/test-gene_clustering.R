@@ -37,11 +37,11 @@ test_that("clustering pipeline is robust to parallelization - perfect chunks", {
     emb <- matrix(runif(1e3 * 30), nrow = 1e3, ncol = 30)
     rownames(emb) <- paste0("cell", seq_len(1e3))
     
-    one_core_cl_output <- clustering_pipeline(emb, n_neighbours = c(5, 50), resolutions = c(0.1, 1))
+    one_core_cl_output <- clustering_pipeline(emb, n_neighbours = c(5, 50), resolutions = list("RBConfigurationVertexPartition" = c(0.1, 1)))
 
     cl <- parallel::makeCluster(2)
     doParallel::registerDoParallel(cl)
-    parallel_cl_output <- clustering_pipeline(emb, n_neighbours = c(5, 50), resolutions = c(0.1, 1))
+    parallel_cl_output <- clustering_pipeline(emb, n_neighbours = c(5, 50), resolutions = list("RBConfigurationVertexPartition" = c(0.1, 1)))
     parallel::stopCluster(cl)
     foreach::registerDoSEQ()
 
@@ -53,11 +53,11 @@ test_that("clustering pipeline is robust to parallelization - imbalanced chunks"
     emb <- matrix(runif(1001 * 30), nrow = 1001, ncol = 30)
     rownames(emb) <- paste0("cell", seq_len(1001))
     
-    one_core_cl_output <- clustering_pipeline(emb, n_neighbours = c(5, 50), resolutions = c(0.1, 1))
+    one_core_cl_output <- clustering_pipeline(emb, n_neighbours = c(5, 50), resolutions = list("RBConfigurationVertexPartition" = c(0.1, 1)))
 
     cl <- parallel::makeCluster(2)
     doParallel::registerDoParallel(cl)
-    parallel_cl_output <- clustering_pipeline(emb, n_neighbours = c(5, 50), resolutions = c(0.1, 1))
+    parallel_cl_output <- clustering_pipeline(emb, n_neighbours = c(5, 50), resolutions = list("RBConfigurationVertexPartition" = c(0.1, 1)))
     parallel::stopCluster(cl)
     foreach::registerDoSEQ()
 
