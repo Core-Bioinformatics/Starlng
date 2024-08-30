@@ -287,7 +287,7 @@ get_pseudotime_recommendation <- function(monocle_object,
 
             criteria_value <- recommendation_criteria(monocle3::pseudotime(monocle_object))
 
-            if (is.null(best_criteria) && criteria_value > best_criteria) {
+            if (is.null(best_criteria) || criteria_value > best_criteria) {
                 best_criteria <- criteria_value
                 recommended_mtd_group <- mtd_group
                 recommended_mtd_name <- mtd_name
