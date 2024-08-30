@@ -189,3 +189,66 @@ time_comparison <- ggplot(time_compar_df, aes(x = configuration, y = time, colou
     theme(plot.title = element_text(hjust = 0.5))
 time_comparison
 
+
+######### APP - Runtime #########
+first_df <- TRUE
+for (ncell in ncells) {
+    current_memory_usage <- read.table(file.path("immune_app", paste0("memory_", ncell, ".txt")))$V1 / (1024 ^ 2)
+    baseline_memory <- median(current_memory_usage[1:3])
+    current_memory_usage <- current_memory_usage[-(1:3)] - baseline_memory
+
+    if (first_df) {
+        first_df <- FALSE
+        memory_df <- data.frame(ncells = rep(ncell, length(current_memory_usage)), memory = current_memory_usage)
+    } else {
+        memory_df <- rbind(memory_df, data.frame(ncells = rep(ncell, length(current_memory_usage)), memory = current_memory_usage))
+    }
+}
+memory_df$ncells <- factor(memory_df$ncells, levels = ncells)
+
+memory_app <- ggplot(memory_df, aes(x = ncells, y = memory)) +
+    geom_boxplot() +
+    theme_bw() +
+    geom_smooth(aes(group = 1), method = "loess", se = TRUE, color = "black", fill = "grey", level = 0.99) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(x = "Number of cells", y = "Memory usage (GB)") +
+    ggtitle("Memory usage of Starlng app for different number of cells") +
+    theme(plot.title = element_text(hjust = 0.5)
+    )
+memory_app
+
+######### APP - Memory #########
+time_to_minutes <- function(x) {
+    x <- as.character(x)
+    x <- strsplit(x, ":")[[1]]
+    x <- as.numeric(x)
+    x <- x[1] * 60 + x[2] + x[3] / 60
+    return(x)
+}
+
+first_df <- TRUE 
+for (ncell in ncells) {
+    current_time <- read.csv(file.path("immune_app", paste0("immune_runtime_app_", ncell, ".csv")), header = FALSE)
+    current_time <- sapply(current_time$V2, function(x) { time_to_minutes(x) })
+
+    if (first_df) {
+        first_df <- FALSE
+        time_df <- data.frame(ncells = rep(ncell, 1), clustering_runtime = current_time[3], heatmap_runtime = current_time[5], total_runtime = sum(current_time))
+    } else {
+        time_df <- rbind(time_df, data.frame(ncells = rep(ncell, 1), clustering_runtime = current_time[3], heatmap_runtime = current_time[5], total_runtime = sum(current_time)))
+    }
+}
+
+# barplot on three categories
+time_df$ncells <- factor(time_df$ncells, levels = ncells)
+time_df_melt <- melt(time_df, id.vars = "ncells")
+colnames(time_df_melt) <- c("ncells", "category", "runtime")
+time_df_melt$category <- factor(time_df_melt$category, levels = c("clustering_runtime", "heatmap_runtime", "total_runtime"))
+
+ggplot(time_df_melt, aes(x = ncells, y = runtime, fill = category)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(x = "Number of cells", y = "Runtime (minutes)", fill = "Executed component") +
+    ggtitle("Runtime of Starlng app for different number of cells") +
+    theme(plot.title = element_text(hjust = 0.5))
