@@ -115,12 +115,15 @@ ui_by_cell_heatmap <- function(id) {
             ),
             shiny::p("Warning! Creating this heatmap might require a lot of memory and time. Please be patient. Consider using a small number of genes."),
             shiny::column(2,
-                shiny::selectInput(
+                shiny::selectizeInput(
                     inputId = ns("module_order"),
                     label = "Predefined order of modules:",
                     choices = c(""),
                     selected = NULL,
-                    multiple = TRUE
+                    multiple = TRUE,
+                    options = list(
+                        plugins = list("remove_button", "drag_drop")
+                    )
                 )
             ),
             shiny::column(1,
@@ -138,7 +141,7 @@ ui_by_cell_heatmap <- function(id) {
                 )
             )
         ),
-        shiny::plotOutput(ns("by_cell_heatmap"), height = "auto")
+        shiny::plotOutput(ns("by_cell_heatmap"), height = "400px", width = "1200px")#, height = "auto")
     )
 }
 
@@ -326,7 +329,7 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                 current_modules <- env$chosen_modules()
                 shiny::req(current_modules)
                 shiny::isolate({
-                    shiny::updateSelectInput(
+                    shiny::updateSelectizeInput(
                         session,
                         inputId = "module_order",
                         choices = names(current_modules),
@@ -408,6 +411,8 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                         cap = input$cap_value,
                         discrete_colour_list = env$color_options$discrete,
                         continuous_colors = env$color_options$continuous[[input$colour_scheme]]
+                        # heatmap_width = grid::unit(5, "in"),
+                        # heatmap_height = grid::unit(5, "in")
                     )
                     gc()
                     return(htmp_obj)
@@ -427,8 +432,6 @@ server_by_cell_heatmap <- function(id, metadata_name) {
                         300 + 70 * ncol(htmp_obj())
                     )
                     output$by_cell_heatmap <- shiny::renderPlot(
-                        height = plt_height,
-                        width = plt_width,
                         {
                             shiny::req(!is.null(htmp_obj()), cancelOutput = TRUE)
                             ComplexHeatmap::draw(

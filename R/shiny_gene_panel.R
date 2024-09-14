@@ -12,7 +12,10 @@ ui_gene_umap_panel <- function(id) {
                 label = "Gene name(s)",
                 choices = NULL,
                 multiple = TRUE,
-                width = "100%"
+                width = "100%",
+                options = list(
+                    plugins = list("remove_button", "drag_drop")
+                )
             )
         ),
         shiny::splitLayout(
