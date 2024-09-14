@@ -143,6 +143,71 @@ ui_gene_clustering <- function(id) {
             ),
             shiny::column(3)
         ),
+        # TODO imrpove the graphical params
+        shiny::splitLayout(
+            cellWidths = "40px",
+            shinyWidgets::dropdownButton(
+                inputId = ns("heatmap_settings"),
+                shiny::tagList(
+                    shiny::sliderInput(
+                        inputId = ns("scale_threshold"),
+                        label = "Scale threshold",
+                        min = 0.00, max = 1.00, value = 0.75, step = 0.005
+                    ),
+                    shiny::numericInput(
+                        inputId = ns("colour_clipping"),
+                        label = "Colour clipping value",
+                        min = 0, value = 1000
+                    ),
+                    shiny::sliderInput(
+                        inputId = ns("text_size"),
+                        label = "Text size",
+                        min = 0.00, max = 30.00, value = 10, step = 0.05
+                    ),
+                    shiny::sliderInput(
+                        inputId = ns("axis_size"),
+                        label = "Axis labels size",
+                        min = 0.00, max = 30.00, value = 10, step = 0.05
+                    ),
+                    shiny::sliderInput(
+                        inputId = ns("legend_size"),
+                        label = "Legend size",
+                        min = 0.00, max = 30.00, value = 10, step = 0.05
+                    ),
+                    shiny::selectInput(
+                        inputId = ns("colour_scheme"),
+                        label = "Colour scheme",
+                        choices = c(""),
+                        selected = NULL
+                    )
+                ),
+                label = "",
+                icon = shiny::icon("cog"),
+                status = "success",
+                size = "sm",
+                circle = TRUE
+            ),
+            gear_download(ns, "heatmap", "heatmap")
+        ),
+        shiny::splitLayout(
+            shiny::selectInput(
+                inputId = ns("gene_clusters_first"),
+                choices = NULL,
+                label = "First group - select a gene clustering"
+            ),
+            shiny::selectInput(
+                inputId = ns("gene_clusters_second"),
+                choices = NULL,
+                label = "Second group - select a gene clustering"
+            ),
+            shinyWidgets::radioGroupButtons(
+                inputId = ns("heatmap_info"),
+                label = "Base of the intersection",
+                choices = c("Gene set", "Expressed cells"),
+                selected = "Gene set"
+            )
+        ),
+        shiny::plotOutput(ns("modules_heatmap"), height = "auto"),
         shiny::div(class = "empty-space")
     )
 }
@@ -180,9 +245,12 @@ server_gene_clustering <- function(id, filtered_genes) {
                     inputId = "tabset",
                     target = "preloaded"
                 )
-            } else {
-                clust_df[["preloaded"]] <- shiny::reactiveVal(env$preloaded_stable_modules)
-            }
+            } 
+            
+            clust_df[["preloaded"]] <- shiny::reactive({
+                shiny::req(env$preloaded_stable_modules)
+                return(env$preloaded_stable_modules)
+            })
 
             shiny::observe({
                 shiny::req(filtered_genes())
@@ -218,7 +286,8 @@ server_gene_clustering <- function(id, filtered_genes) {
                     graph_type = tolower(input$graph_type),
                     resolutions = res_list,
                     number_iterations = input$n_iterations,
-                    number_repetitions = input$n_seeds
+                    number_repetitions = input$n_seeds,
+                    merge_identical_partitions = FALSE
                 ), 3)
 
                 cl_result <- get_clusters_consistency(cl_result)[[1]][[1]]
@@ -250,7 +319,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                     for (k in names(cl_result)) {
                         stb_df[[paste0("stable_modules_", k)]] <- factor(cl_result[[k]]$partitions[[1]]$mb)
                     }
-                    stb_df <- stb_df[,2:ncol(stb_df)]
+                    stb_df <- stb_df[, 2:ncol(stb_df), drop = FALSE]
 
                     return(stb_df)
                 })
@@ -394,6 +463,177 @@ server_gene_clustering <- function(id, filtered_genes) {
                 })
             })
 
+            available_modules <- shiny::reactive({
+                tmp_available_modules <- list()
+                for (tab_type in c("preloaded", "realtime", "custom")) {
+                    if (tab_type == "realtime" && input$run_clustering == 0) {
+                        next
+                    }
+
+                    if (tab_type == "custom" && input$create_family == 0) {
+                        next
+                    }
+                    appr_clust_df <- clust_df[[tab_type]]()
+                    if (is.null(appr_clust_df)) {
+                        next
+                    }
+
+                    tmp_available_modules[[tab_type]] <- paste0(tab_type, "---", colnames(appr_clust_df))
+                }
+                tmp_available_modules <- unlist(tmp_available_modules)
+                names(tmp_available_modules) <- NULL
+                return(tmp_available_modules)
+            })
+
+
+            shiny::observe({
+                tmp_available_modules <- available_modules()
+                names(tmp_available_modules) <- NULL
+                shiny::req(tmp_available_modules)
+                shiny::updateSelectInput(
+                    session,
+                    inputId = "gene_clusters_first",
+                    choices = tmp_available_modules,
+                    selected = tmp_available_modules[1]
+                )
+
+                shiny::updateSelectInput(
+                    session,
+                    inputId = "gene_clusters_second",
+                    choices = tmp_available_modules,
+                    selected = tmp_available_modules[1]
+                )
+            })
+
+            heatmap_information <- shiny::reactive({
+                first_clusters <- input$gene_clusters_first
+                second_clusters <- input$gene_clusters_second
+                htmp_info_type <- input$heatmap_info
+
+                shiny::req(first_clusters, second_clusters)
+                scale_threshold <- input$scale_threshold
+                colour_clipping <- input$colour_clipping
+                # available_modules_cell_associations()
+                shiny::isolate({
+                    tab_first <- strsplit(first_clusters, "---")[[1]][1]
+                    first_clusters <- strsplit(first_clusters, "---")[[1]][2]
+                    first_clusters <- clust_df[[tab_first]]()[ , first_clusters]
+                    unique_first <- unique(first_clusters)
+                    if (all(grepl("^[0-9]+$", unique_first))) {
+                        unique_first <- sort(as.numeric(unique_first))
+                    }
+
+                    tab_second <- strsplit(second_clusters, "---")[[1]][1]
+                    second_clusters <- strsplit(second_clusters, "---")[[1]][2]
+                    second_clusters <- clust_df[[tab_second]]()[ , second_clusters]
+                    unique_second <- unique(second_clusters)
+                    if (all(grepl("^[0-9]+$", unique_second))) {
+                        unique_second <- sort(as.numeric(unique_second))
+                    }
+
+                    if (htmp_info_type == "Gene set") {
+                        gene_contingency <- table(first_clusters, second_clusters)
+                    } else {
+                        gene_set_split_first <- split(rownames(clust_df[[tab_first]]()), first_clusters)
+                        cell_list_first <- lapply(gene_set_split_first, function(gene_set) {
+                            voting_result <- scale_min_max(voting_scheme(
+                                expression_matrix = scale_min_max(read_gene_from_dense_h5(
+                                    gene_names = gene_set,
+                                    matrix_h5_path = file.path("objects", "expression.h5"),
+                                    index_genes = env$genes[gene_set],
+                                    check_intersect = FALSE
+                                )),
+                                genes = gene_set,
+                                thresh_percentile = 0,
+                                thresh_value = 0,
+                                n_coexpressed_thresh = 1,
+                                summary_function = mean
+                            ))
+
+                            index <- which(voting_result > scale_threshold)
+                            return(names(voting_result)[index])
+                        })
+
+                        if (input$gene_clusters_first == input$gene_clusters_second) {
+                            cell_list_second <- cell_list_first
+                        } else {
+                            gene_set_split_second <- split(rownames(clust_df[[tab_second]]()), second_clusters)
+                            cell_list_second <- lapply(gene_set_split_second, function(gene_set) {
+                                voting_result <- scale_min_max(voting_scheme(
+                                    expression_matrix = scale_min_max(read_gene_from_dense_h5(
+                                        gene_names = gene_set,
+                                        matrix_h5_path = file.path("objects", "expression.h5"),
+                                        index_genes = env$genes[gene_set],
+                                        check_intersect = FALSE
+                                    )),
+                                    genes = gene_set,
+                                    thresh_percentile = 0,
+                                    thresh_value = 0,
+                                    n_coexpressed_thresh = 1,
+                                    summary_function = mean
+                                ))
+
+                                index <- which(voting_result > scale_threshold)
+                                return(names(voting_result)[index])
+                            })
+                        }
+
+                        gene_contingency <- matrix(0, nrow = length(cell_list_first), ncol = length(cell_list_second))
+                        for (i in seq_along(cell_list_first)) {
+                            for (j in seq_along(cell_list_second)) {
+                                gene_contingency[i, j] <- length(intersect(cell_list_first[[i]], cell_list_second[[j]]))
+                            }
+                        }
+                        rownames(gene_contingency) <- unique_first
+                        colnames(gene_contingency) <- unique_second
+
+                    }
+
+                    clipped_gene_contingency <- gene_contingency
+                    colour_clipping <- min(max(gene_contingency), colour_clipping)
+                    clipped_gene_contingency[clipped_gene_contingency > colour_clipping] <- colour_clipping
+
+                    return(ComplexHeatmap::Heatmap(
+                        clipped_gene_contingency,
+                        row_order = unique_first,
+                        column_order = unique_second,
+                        row_names_side = "left",
+                        cell_fun = function(j, i, x, y, width, height, fill) {
+                            grid::grid.text(
+                                label = gene_contingency[i, j],
+                                x = x,
+                                y = y,
+                                just = "center",
+                                gp = grid::gpar(fontsize = 10)
+                            )
+                        }
+                    ))
+                })
+            })
+
+            shiny::observe({
+                shiny::req(heatmap_information())
+                window_dims <- env$window_dim()
+                shiny::isolate({
+                    plt_height <- min(
+                        window_dims[2] * 0.8,
+                        250 + 40 * nrow(heatmap_information())
+                    )
+
+                    plt_width <- min(
+                        window_dims[1] * 0.8,
+                        250 + 40 * ncol(heatmap_information())
+                    )
+                    output$modules_heatmap <- shiny::renderPlot(
+                        height = plt_height,
+                        width = plt_width,
+                        {
+                            heatmap_information()
+                        }
+                    )
+                })
+            })
+
             shiny::observe({
                 shinyjs::disable("select_module")
 
@@ -441,6 +681,8 @@ server_gene_clustering <- function(id, filtered_genes) {
                     env$chosen_modules(split(names(module), module))
                 })
             }) %>% shiny::bindEvent(input$select_module)
+
+            
         }
     )
 }
