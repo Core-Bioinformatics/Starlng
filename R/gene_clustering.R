@@ -269,7 +269,7 @@ community_detection_master <- function(adj_object,
 #' pipeline should run. Defaults to 100.
 #' @param merge_identical_partitions Logical indicating if the function should
 #' merge the partitions that are identical and group them by the number of
-#' clusters. Defaults to FALSE.
+#' clusters. Defaults to TRUE. 
 #' @param memory_log_file The path to the file where the memory usage of the
 #' function should be logged. Defaults to NULL.
 #' 
@@ -291,7 +291,7 @@ clustering_pipeline <- function(embedding,
                                 number_iterations = 5,
                                 seeds = NULL,
                                 number_repetitions = 100,
-                                merge_identical_partitions = FALSE,
+                                merge_identical_partitions = TRUE,
                                 memory_log_file = NULL) {
     # TODO add progress bar
     # TODO check if it's worth to add the option of memory logging
