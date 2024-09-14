@@ -82,6 +82,8 @@ ui_global_setttings <- function() {
 #'
 #' @export
 prepare_session <- function(reactive_dim, height_ratio = 0.7) {
+    RhpcBLASctl::blas_set_num_threads(1)
+    
     # NOTE can we put this as a setting for the user to set in the app?
     assign("height_ratio", height_ratio, envir = env)
     assign("window_dim", reactive_dim, envir = env)
