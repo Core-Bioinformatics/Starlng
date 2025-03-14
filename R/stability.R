@@ -75,7 +75,7 @@ group_by_clusters_general <- function(clustering_list, start_level = 1) {
 #' @return A nested list with the partitions ordered by agreement / frequency
 #' and the overall ECC value.
 #' @export
-get_clusters_consistency <- function(by_cluster_list, order_logic = "agreement") {
+get_clusters_consistency <- function(by_cluster_list, order_logic = "avg_agreement") {
     if (!("k" %in% names(by_cluster_list))) {
         for (sub_name in names(by_cluster_list)) {
             by_cluster_list[[sub_name]] <- get_clusters_consistency(by_cluster_list[[sub_name]], order_logic)
