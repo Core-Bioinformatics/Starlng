@@ -531,10 +531,44 @@ server_gene_clustering <- function(id, filtered_genes) {
                         unique_second <- sort(as.numeric(unique_second))
                     }
 
+                    gene_set_first <- rownames(clust_df[[tab_first]]())
+                    names(first_clusters) <- gene_set_first
+                    gene_set_second <- rownames(clust_df[[tab_second]]())
+                    names(second_clusters) <- gene_set_second
+
+                    common_genes <- intersect(gene_set_first, gene_set_second)
+                    all_genes <- union(gene_set_first, gene_set_second)
+
+                    if (length(all_genes) != length(common_genes)) {
+                        specific_1 <- setdiff(gene_set_first, common_genes)
+                        if (length(specific_1) != 0) {
+                            second_clusters <- c(
+                                second_clusters,
+                                setNames(rep("other", length(specific_1)), specific_1)
+                            )
+                            unique_second <- c(unique_second, "other")
+                        }
+
+                        specific_2 <- setdiff(gene_set_second, common_genes)
+                        if (length(specific_2) != 0) {
+                            first_clusters <- c(
+                                first_clusters,
+                                setNames(rep("other", length(specific_2)), specific_2)
+                            )
+                            unique_first <- c(unique_first, "other")
+                        }
+                    }
+                    matching_order <- match(names(first_clusters), names(second_clusters))
+                    first_clusters <- first_clusters[matching_order]
+
                     if (htmp_info_type == "Gene set") {
                         gene_contingency <- table(first_clusters, second_clusters)
                     } else {
-                        gene_set_split_first <- split(rownames(clust_df[[tab_first]]()), first_clusters)
+                        gene_set_split_first <- split(names(first_clusters), first_clusters)
+                        # if (length(all_genes) != length(common_genes) && length(specific_1) != 0) {
+                            # gene_set_split_first$other <- specific_1
+                        # }
+
                         cell_list_first <- lapply(gene_set_split_first, function(gene_set) {
                             voting_result <- scale_min_max(voting_scheme(
                                 expression_matrix = scale_min_max(read_gene_from_dense_h5(
@@ -557,7 +591,10 @@ server_gene_clustering <- function(id, filtered_genes) {
                         if (input$gene_clusters_first == input$gene_clusters_second) {
                             cell_list_second <- cell_list_first
                         } else {
-                            gene_set_split_second <- split(rownames(clust_df[[tab_second]]()), second_clusters)
+                            gene_set_split_second <- split(names(second_clusters), second_clusters)
+                            # if (length(all_genes) != length(common_genes) && length(specific_2) != 0) {
+                                # gene_set_split_second$other <- specific_2
+                            # }
                             cell_list_second <- lapply(gene_set_split_second, function(gene_set) {
                                 voting_result <- scale_min_max(voting_scheme(
                                     expression_matrix = scale_min_max(read_gene_from_dense_h5(
