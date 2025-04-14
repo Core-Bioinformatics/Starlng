@@ -559,15 +559,12 @@ server_gene_clustering <- function(id, filtered_genes) {
                         }
                     }
                     matching_order <- match(names(first_clusters), names(second_clusters))
-                    first_clusters <- first_clusters[matching_order]
+                    second_clusters <- second_clusters[matching_order]
 
                     if (htmp_info_type == "Gene set") {
                         gene_contingency <- table(first_clusters, second_clusters)
                     } else {
                         gene_set_split_first <- split(names(first_clusters), first_clusters)
-                        # if (length(all_genes) != length(common_genes) && length(specific_1) != 0) {
-                            # gene_set_split_first$other <- specific_1
-                        # }
 
                         cell_list_first <- lapply(gene_set_split_first, function(gene_set) {
                             voting_result <- scale_min_max(voting_scheme(
@@ -592,9 +589,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                             cell_list_second <- cell_list_first
                         } else {
                             gene_set_split_second <- split(names(second_clusters), second_clusters)
-                            # if (length(all_genes) != length(common_genes) && length(specific_2) != 0) {
-                                # gene_set_split_second$other <- specific_2
-                            # }
+
                             cell_list_second <- lapply(gene_set_split_second, function(gene_set) {
                                 voting_result <- scale_min_max(voting_scheme(
                                     expression_matrix = scale_min_max(read_gene_from_dense_h5(
