@@ -60,7 +60,7 @@ generate_continuous_colours <- function(existing_colours_list = NULL) {
     return(existing_colours_list)
 }
 
-starlng_write_app_file <- function(file_path, title_name = "", height_ratio = 0.7) {
+starlng_write_app_file <- function(file_path, title_name = "", height_ratio = 0.7, enrichment_organism = "hsapiens") {
     title_name <- paste0("Starlng ShinyApp - ", title_name)
     content <- paste0("library(Starlng)
 
@@ -117,7 +117,7 @@ ui <- shiny::fluidPage(
 )
 
 server <- function(input, output, session) {
-    prepare_session(shiny::reactive(input$dimension), ", height_ratio, ")
+    prepare_session(shiny::reactive(input$dimension), ", height_ratio, ", ", enrichment_organism, ")
     update_gears_width(session)
     update_tabs(session)
     server_metadata_umap(\"metadata_umap\")
@@ -175,6 +175,7 @@ shiny::shinyApp(ui = ui, server = server)
 #' @param freq_threshold The threshold applied on the number of times a number
 #' of clusters is obtained after running the `clustering_pipeline` function. By
 #' default, it is set to 30.
+#' @param enrichment_organism The organism used for the enrichment analysis.
 #' @param save_entire_monocle If TRUE, saves the monocle object in the app
 #' folder. This object could be used to perform additional changes to the app
 #' or to continue the downstream analysis. If memory is a concern, set this
@@ -245,6 +246,7 @@ starlng_write_app_monocle <- function(folder_path,
                               ),
                               ecc_threshold = 0.9,
                               freq_threshold = 30,
+                              enrichment_organism = "hsapiens",
                               save_entire_monocle = TRUE,
                               discrete_colours = list(),
                               continuous_colours = list(),
@@ -257,7 +259,7 @@ starlng_write_app_monocle <- function(folder_path,
         dir.create(folder_path, recursive = TRUE, showWarnings = FALSE)
     }
     if (verbose) print("Writing app.R...")
-    starlng_write_app_file(file.path(folder_path, "app.R"), app_title_name)
+    starlng_write_app_file(file.path(folder_path, "app.R"), app_title_name, enrichment_organism = enrichment_organism)
     folder_path <- file.path(folder_path, "objects")
     if (!dir.exists(folder_path)) {
         dir.create(folder_path, showWarnings = FALSE)
@@ -433,7 +435,7 @@ starlng_write_app_monocle <- function(folder_path,
 #' matrix and generates a folder with all necessary files to run a Shiny app.
 #'
 #' @note For more details about the other parameters and the content of the
-#' shiny folder, consult the documentation of the `starlng_write_app_monocle`
+#' shiny folder, consult the documentation of the `starlng_write_app_monocle()`
 #' function.
 #'
 #' @param expression_matrix A normalized gene by cell expression matrix. The
@@ -446,21 +448,22 @@ starlng_write_app_monocle <- function(folder_path,
 #' object.
 #' @param umap_embedding A matrix with the UMAP embedding of the cells. If NULL,
 #' the function will calculate the UMAP embedding while creating the monocle3.
-#' @param folder_path Check `starlng_write_app_monocle` documentation.
-#' @param app_title_name Check `starlng_write_app_monocle` documentation.
-#' @param learn_graph_parameters Check `starlng_write_app_monocle` documentation.
-#' @param gene_filtering_function Check `starlng_write_app_monocle` documentation.
-#' @param clustering_parameters Check `starlng_write_app_monocle` documentation.
-#' @param ecc_threshold Check `starlng_write_app_monocle` documentation.
-#' @param freq_threshold Check `starlng_write_app_monocle` documentation.
-#' @param save_entire_monocle Check `starlng_write_app_monocle` documentation.
-#' @param discrete_colours Check `starlng_write_app_monocle` documentation.
-#' @param continuous_colours Check `starlng_write_app_monocle` documentation.
-#' @param max_n_colors Check `starlng_write_app_monocle` documentation.
-#' @param verbose Check `starlng_write_app_monocle` documentation.
-#' @param compression_level Check `starlng_write_app_monocle` documentation.
-#' @param chunk_size Check `starlng_write_app_monocle` documentation.
-#' @param nthreads Check `starlng_write_app_monocle` documentation.
+#' @param folder_path Check `starlng_write_app_monocle()` documentation.
+#' @param app_title_name Check `starlng_write_app_monocle()` documentation.
+#' @param learn_graph_parameters Check `starlng_write_app_monocle()` documentation.
+#' @param gene_filtering_function Check `starlng_write_app_monocle()` documentation.
+#' @param clustering_parameters Check `starlng_write_app_monocle()` documentation.
+#' @param ecc_threshold Check `starlng_write_app_monocle()` documentation.
+#' @param freq_threshold Check `starlng_write_app_monocle()` documentation.
+#' @param enrichment_organism Check `starlng_write_app_monocle()` documentation.
+#' @param save_entire_monocle Check `starlng_write_app_monocle()` documentation.
+#' @param discrete_colours Check `starlng_write_app_monocle()` documentation.
+#' @param continuous_colours Check `starlng_write_app_monocle()` documentation.
+#' @param max_n_colors Check `starlng_write_app_monocle()` documentation.
+#' @param verbose Check `starlng_write_app_monocle()` documentation.
+#' @param compression_level Check `starlng_write_app_monocle()` documentation.
+#' @param chunk_size Check `starlng_write_app_monocle()` documentation.
+#' @param nthreads Check `starlng_write_app_monocle()` documentation.
 #'
 #' @export
 starlng_write_app_default <- function(folder_path,
@@ -493,6 +496,7 @@ starlng_write_app_default <- function(folder_path,
                               ),
                               ecc_threshold = 0.9,
                               freq_threshold = 30,
+                              enrichment_organism = "hsapiens",
                               save_entire_monocle = TRUE,
                               discrete_colours = list(),
                               continuous_colours = list(),
@@ -519,6 +523,7 @@ starlng_write_app_default <- function(folder_path,
         clustering_parameters = clustering_parameters,
         ecc_threshold = ecc_threshold,
         freq_threshold = freq_threshold,
+        enrichment_organism = enrichment_organism,
         save_entire_monocle = save_entire_monocle,
         discrete_colours = discrete_colours,
         continuous_colours = continuous_colours,
@@ -537,7 +542,7 @@ starlng_write_app_default <- function(folder_path,
 #' and generates a folder with all necessary files to run a Shiny app.
 #'
 #' @note For more details about the other parameters and the content of the
-#' shiny folder, consult the documentation of the `starlng_write_app_monocle`
+#' shiny folder, consult the documentation of the `starlng_write_app_monocle()`
 #' function.
 #'
 #' @param expression_matrix A normalized gene by cell expression matrix. The
@@ -559,21 +564,22 @@ starlng_write_app_default <- function(folder_path,
 #' @param use_all_genes If TRUE, uses all the genes in the expression matrix.
 #' If FALSE, uses only the stable feature set as determined by ClustAssess.
 #' Defaults to TRUE.
-#' @param folder_path Check `starlng_write_app_monocle` documentation.
-#' @param app_title_name Check `starlng_write_app_monocle` documentation.
-#' @param learn_graph_parameters Check `starlng_write_app_monocle` documentation.
-#' @param gene_filtering_function Check `starlng_write_app_monocle` documentation.
-#' @param clustering_parameters Check `starlng_write_app_monocle` documentation.
-#' @param ecc_threshold Check `starlng_write_app_monocle` documentation.
-#' @param freq_threshold Check `starlng_write_app_monocle` documentation.
-#' @param save_entire_monocle Check `starlng_write_app_monocle` documentation.
-#' @param discrete_colours Check `starlng_write_app_monocle` documentation.
-#' @param continuous_colours Check `starlng_write_app_monocle` documentation.
-#' @param max_n_colors Check `starlng_write_app_monocle` documentation.
-#' @param verbose Check `starlng_write_app_monocle` documentation.
-#' @param compression_level Check `starlng_write_app_monocle` documentation.
-#' @param chunk_size Check `starlng_write_app_monocle` documentation.
-#' @param nthreads Check `starlng_write_app_monocle` documentation.
+#' @param folder_path Check `starlng_write_app_monocle()` documentation.
+#' @param app_title_name Check `starlng_write_app_monocle()` documentation.
+#' @param learn_graph_parameters Check `starlng_write_app_monocle()` documentation.
+#' @param gene_filtering_function Check `starlng_write_app_monocle()` documentation.
+#' @param clustering_parameters Check `starlng_write_app_monocle()` documentation.
+#' @param ecc_threshold Check `starlng_write_app_monocle()` documentation.
+#' @param freq_threshold Check `starlng_write_app_monocle()` documentation.
+#' @param enrichment_organism Check `starlng_write_app_monocle()` documentation.`
+#' @param save_entire_monocle Check `starlng_write_app_monocle()` documentation.
+#' @param discrete_colours Check `starlng_write_app_monocle()` documentation.
+#' @param continuous_colours Check `starlng_write_app_monocle()` documentation.
+#' @param max_n_colors Check `starlng_write_app_monocle()` documentation.
+#' @param verbose Check `starlng_write_app_monocle()` documentation.
+#' @param compression_level Check `starlng_write_app_monocle()` documentation.
+#' @param chunk_size Check `starlng_write_app_monocle()` documentation.
+#' @param nthreads Check `starlng_write_app_monocle()` documentation.
 #'
 #' @export
 starlng_write_app_clustassess <- function(folder_path,
@@ -610,6 +616,7 @@ starlng_write_app_clustassess <- function(folder_path,
                                   ),
                                   ecc_threshold = 0.9,
                                   freq_threshold = 30,
+                                  enrichment_organism = "hsapiens",
                                   save_entire_monocle = TRUE,
                                   discrete_colours = list(),
                                   continuous_colours = list(),
@@ -640,6 +647,7 @@ starlng_write_app_clustassess <- function(folder_path,
         clustering_parameters = clustering_parameters,
         ecc_threshold = ecc_threshold,
         freq_threshold = freq_threshold,
+        enrichment_organism = enrichment_organism,
         save_entire_monocle = save_entire_monocle,
         discrete_colours = discrete_colours,
         continuous_colours = continuous_colours,
@@ -658,7 +666,7 @@ starlng_write_app_clustassess <- function(folder_path,
 #' and generates a folder with all necessary files to run a Shiny app.
 #'
 #' @note For more details about the other parameters and the content of the
-#' shiny folder, consult the documentation of the `starlng_write_app_monocle`
+#' shiny folder, consult the documentation of the `starlng_write_app_monocle()`
 #' function.
 #'
 #' @param ca_app_folder The path of the folder containing the files associated
@@ -675,21 +683,22 @@ starlng_write_app_clustassess <- function(folder_path,
 #' @param use_all_genes If TRUE, uses all the genes in the expression matrix.
 #' If FALSE, uses only the stable feature set as determined by ClustAssess.
 #' Defaults to TRUE.
-#' @param folder_path Check `starlng_write_app_monocle` documentation.
-#' @param app_title_name Check `starlng_write_app_monocle` documentation.`
-#' @param learn_graph_parameters Check `starlng_write_app_monocle` documentation.`
-#' @param gene_filtering_function Check `starlng_write_app_monocle` documentation.`
-#' @param clustering_parameters Check `starlng_write_app_monocle` documentation.`
-#' @param ecc_threshold Check `starlng_write_app_monocle` documentation.`
-#' @param freq_threshold Check `starlng_write_app_monocle` documentation.`
-#' @param save_entire_monocle Check `starlng_write_app_monocle` documentation.`
-#' @param discrete_colours Check `starlng_write_app_monocle` documentation.`
-#' @param continuous_colours Check `starlng_write_app_monocle` documentation.`
-#' @param max_n_colors Check `starlng_write_app_monocle` documentation.`
-#' @param verbose Check `starlng_write_app_monocle` documentation.
-#' @param compression_level Check `starlng_write_app_monocle` documentation.`
-#' @param chunk_size Check `starlng_write_app_monocle` documentation.
-#' @param nthreads Check `starlng_write_app_monocle` documentation.
+#' @param folder_path Check `starlng_write_app_monocle()` documentation.
+#' @param app_title_name Check `starlng_write_app_monocle()` documentation.`
+#' @param learn_graph_parameters Check `starlng_write_app_monocle()` documentation.`
+#' @param gene_filtering_function Check `starlng_write_app_monocle()` documentation.`
+#' @param clustering_parameters Check `starlng_write_app_monocle()` documentation.`
+#' @param ecc_threshold Check `starlng_write_app_monocle()` documentation.`
+#' @param freq_threshold Check `starlng_write_app_monocle()` documentation.`
+#' @param enrichment_organism Check `starlng_write_app_monocle()` documentation.`
+#' @param save_entire_monocle Check `starlng_write_app_monocle()` documentation.`
+#' @param discrete_colours Check `starlng_write_app_monocle()` documentation.`
+#' @param continuous_colours Check `starlng_write_app_monocle()` documentation.`
+#' @param max_n_colors Check `starlng_write_app_monocle()` documentation.`
+#' @param verbose Check `starlng_write_app_monocle()` documentation.
+#' @param compression_level Check `starlng_write_app_monocle()` documentation.`
+#' @param chunk_size Check `starlng_write_app_monocle()` documentation.
+#' @param nthreads Check `starlng_write_app_monocle()` documentation.
 #'
 #' @export
 starlng_write_app_clustassess_app <- function(folder_path,
@@ -724,6 +733,7 @@ starlng_write_app_clustassess_app <- function(folder_path,
                                       ),
                                       ecc_threshold = 0.9,
                                       freq_threshold = 30,
+                                      enrichment_organism = "hsapiens",
                                       save_entire_monocle = TRUE,
                                       discrete_colours = list(),
                                       continuous_colours = list(),
@@ -751,6 +761,7 @@ starlng_write_app_clustassess_app <- function(folder_path,
         clustering_parameters = clustering_parameters,
         ecc_threshold = ecc_threshold,
         freq_threshold = freq_threshold,
+        enrichment_organism = enrichment_organism,
         save_entire_monocle = save_entire_monocle,
         discrete_colours = discrete_colours,
         continuous_colours = continuous_colours,

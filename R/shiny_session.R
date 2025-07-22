@@ -81,7 +81,7 @@ ui_global_setttings <- function() {
 #' in the context of the app created using the `starlng_write_app` function.
 #'
 #' @export
-prepare_session <- function(reactive_dim, height_ratio = 0.7) {
+prepare_session <- function(reactive_dim, height_ratio = 0.7, enrichment_organism = "hsapiens") {
     RhpcBLASctl::blas_set_num_threads(1)
     
     # NOTE can we put this as a setting for the user to set in the app?
@@ -141,7 +141,7 @@ prepare_session <- function(reactive_dim, height_ratio = 0.7) {
     # assign("expr_mat", HDF5Array::H5SparseMatrix(expr_path, "expression_matrix"), envir = env)
 
     assign("pseudotime_changes", shiny::reactiveVal(0), envir = env)
-    assign("organism", "hsapiens", envir = env)
+    assign("organism", enrichment_organism, envir = env)
 }
 
 #' Server - Gear Width
