@@ -88,11 +88,8 @@ prepare_session <- function(reactive_dim, height_ratio = 0.7) {
     assign("height_ratio", height_ratio, envir = env)
     assign("window_dim", reactive_dim, envir = env)
 
-    mtd_path <- file.path("objects", "metadata.qs")
-    if (!file.exists(mtd_path)) {
-        stop("`objects/metadata.qs` file not found")
-    }
-    mtd_df <- qs::qread(mtd_path, nthreads = 1)
+    mtd_path <- file.path("objects", "metadata.qs2")
+    mtd_df <- read_qs_format(mtd_path)
     ncols <- ncol(mtd_df)
     assign("umap_df", mtd_df[, (ncols - 1):ncols], envir = env)
     assign("mtd_df", mtd_df[, seq_len(ncols - 2)], envir = env)
@@ -106,29 +103,17 @@ prepare_session <- function(reactive_dim, height_ratio = 0.7) {
     names(discrete_mtd) <- colnames(mtd_df)[discrete_mask]
     assign("discrete_mtd", discrete_mtd, envir = env)
 
-    recommended_psd_path <- file.path("objects", "recommended_pseudotime.qs")
-    if (!file.exists(recommended_psd_path)) {
-        stop("`objects/recommended_pseudotime.qs` file not found")
-    }
-    assign("recommended_psd", qs::qread(recommended_psd_path, nthreads = 1), envir = env)
+    psd_path <- file.path("objects", "recommended_pseudotime.qs2")
+    assign("recommended_psd", read_qs_format(psd_path), envir = env)
 
-    mon_obj_path <- file.path("objects", "diet_monocle_object.qs")
-    if (!file.exists(mon_obj_path)) {
-        stop("`objects/diet_monocle_object.qs` file not found")
-    }
-    assign("mon_obj", qs::qread(mon_obj_path, nthreads = 1), envir = env)
+    mon_obj_path <- file.path("objects", "diet_monocle_object.qs2")
+    assign("mon_obj", read_qs_format(mon_obj_path), envir = env)
 
-    colors_path <- file.path("objects", "colours.qs")
-    if (!file.exists(colors_path)) {
-        stop("`objects/colours.qs` file not found")
-    }
-    assign("color_options", qs::qread(colors_path, nthreads = 1), envir = env)
+    colors_path <- file.path("objects", "colours.qs2")
+    assign("color_options", read_qs_format(colors_path), envir = env)
 
-    traj_path <- file.path("objects", "trajectory_ggplot.qs")
-    if (!file.exists(traj_path)) {
-        stop("`objects/trajectory_gplot.qs` file not found")
-    }
-    assign("trajectory_gplot", qs::qread(traj_path, nthreads = 1), envir = env)
+    traj_path <- file.path("objects", "trajectory_ggplot.qs2")
+    assign("trajectory_gplot", read_qs_format(traj_path), envir = env)
 
     moran_path <- file.path("objects", "genes_info.csv")
     if (!file.exists(moran_path)) {
@@ -153,6 +138,7 @@ prepare_session <- function(reactive_dim, height_ratio = 0.7) {
     names(index) <- env$genes
     assign("genes", index, envir = env)
     assign("cells", rhdf5::h5read(expr_path, "cells"), envir = env)
+    # assign("expr_mat", HDF5Array::H5SparseMatrix(expr_path, "expression_matrix"), envir = env)
 
     assign("pseudotime_changes", shiny::reactiveVal(0), envir = env)
     assign("organism", "hsapiens", envir = env)
@@ -203,6 +189,7 @@ update_tabs <- function(session) {
             )
         }
         shiny::req(env$chosen_modules())
+        print(paste(Sys.time(), "Updating tabs with modules:"))
         for (target_tab in c("module_enrichment", "module_umap", "gene_heatmaps")) {
             shiny::showTab(
                 inputId = "nav",
@@ -215,5 +202,6 @@ update_tabs <- function(session) {
             inputId = "nav",
             selected = "module_umap"
         )
+        print(paste(Sys.time(), "Updated tabs"))
     })
 }

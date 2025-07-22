@@ -123,11 +123,11 @@ req_gear_umap <- function(session, id = "settings") {
 }
 
 req_gear_heatmap <- function(session, pseudobulk = TRUE) {
-    used_vars <- c("scale_values", "axis_size", "legend_size", "colour_scheme")
+    used_vars <- c("scale_values", "axis_size", "legend_size", "colour_scheme", "cap_value")
     if (pseudobulk) {
         used_vars <- c(used_vars, "summarise_expr", "text_size")
     } else {
-        used_vars <- c(used_vars, "k_smooth", "cap_value")
+        used_vars <- c(used_vars, "k_smooth" )
     }
 
     for (input_val in used_vars) {
@@ -139,4 +139,18 @@ req_gear_download <- function(session, id) {
     for (input_val in paste0(c("filename_", "width_", "height_", "filetype_"), id)) {
         shiny::req(!is.null(session$input[[input_val]]))
     }
+}
+
+read_qs_format <- function(fl_path) {
+    if (file.exists(fl_path)) {
+        return(qs2::qs_read(fl_path, nthreads = 1))
+    }
+
+    fl_path <- sub("\\.qs2$", ".qs", fl_path)
+    if (file.exists(fl_path)) {
+        warning("Using deprecated `qs` format.")
+        return(qs::qread(fl_path, nthreads = 1))
+    }
+
+    stop(paste0("File not found: ", fl_path, "2"))
 }

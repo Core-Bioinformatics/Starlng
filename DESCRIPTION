@@ -25,6 +25,7 @@ Imports:
     monocle3,
     patchwork,
     qs,
+    qs2,
     qualpalr,
     RANN,
     RhpcBLASctl,

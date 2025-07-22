@@ -177,7 +177,8 @@ shiny::shinyApp(ui = ui, server = server)
 #' default, it is set to 30.
 #' @param save_entire_monocle If TRUE, saves the monocle object in the app
 #' folder. This object could be used to perform additional changes to the app
-#' or to continue the downstream analysis.
+#' or to continue the downstream analysis. If memory is a concern, set this
+#' parameter to FALSE. Defaults to TRUE.
 #' @param discrete_colours A list of colours that will be used to colour the
 #' groups from the discrete metadata. The list should consist in an
 #' association between the number of groups and a colour palette. For the
@@ -207,14 +208,14 @@ shiny::shinyApp(ui = ui, server = server)
 #' contains all necessary files to run the Starlng Shiny app.
 #' - `app.R` - the main file of the Shiny app.
 #' - `objects` - a folder that contains the following files:
-#'  - `monocle_object.qs` - the monocle object that was used to generate the app.
-#'  - `recommended_pseudotime.qs` - the recommended pseudotime values.
+#'  - `monocle_object.qs2` - the monocle object that was used to generate the app.
+#'  - `recommended_pseudotime.qs2` - the recommended pseudotime values.
 #'  - `genes_info.csv` - a table with the gene information.
-#'  - `trajectory_ggplot.qs` - the ggplot object of the trajectory.
-#'  - `metadata.qs` - the metadata object.
-#'  - `diet_monocle_object.qs` - the monocle object with the diet information.
+#'  - `trajectory_ggplot.qs2` - the ggplot object of the trajectory.
+#'  - `metadata.qs2` - the metadata object.
+#'  - `diet_monocle_object.qs2` - the monocle object with the diet information.
 #'  - `expression.h5` - the expression matrix in the HDF5 format.
-#'  - `colours.qs` - the colours object.
+#'  - `colours.qs2` - the colours object.
 #'
 #' @export
 starlng_write_app_monocle <- function(folder_path,
@@ -268,17 +269,18 @@ starlng_write_app_monocle <- function(folder_path,
         c(list("mon_obj" = monocle_object), learn_graph_parameters)
     )
 
-    mon_path <- file.path(folder_path, "monocle_object.qs")
+    mon_path <- file.path(folder_path, "monocle_object.qs2")
     if (save_entire_monocle) {
         if (verbose) print("Writing the monocle object...")
-        qs::qsave(monocle_object, file = mon_path, nthreads = nthreads)
+        qs2::qs_save(monocle_object, file = mon_path, nthreads = nthreads)
     }
 
     # recommended pseudotime
     if (verbose) print("Writing the recommended pseudotime...")
-    psd_path <- file.path(folder_path, "recommended_pseudotime.qs")
+    psd_path <- file.path(folder_path, "recommended_pseudotime.qs2")
     psd_values <- get_pseudotime_recommendation(monocle_object)
-    qs::qsave(psd_values, file = psd_path)
+    qs2::qs_save(psd_values, file = psd_path)
+    gc()
 
     # autocorrelation object
     if (verbose) print("Writing the gene info table...")
@@ -313,7 +315,7 @@ starlng_write_app_monocle <- function(folder_path,
 
     # trajectory ggplot object
     if (verbose) print("Writing the trajectory ggplot object...")
-    trajectory_path <- file.path(folder_path, "trajectory_ggplot.qs")
+    trajectory_path <- file.path(folder_path, "trajectory_ggplot.qs2")
     trajectory_ggplot <- monocle3::plot_cells(
         monocle_object,
         cell_size = 0,
@@ -332,28 +334,28 @@ starlng_write_app_monocle <- function(folder_path,
 
         trajectory_ggplot[[other_names]] <- NULL
     }
-    qs::qsave(trajectory_ggplot, file = trajectory_path)
+    qs2::qs_save(trajectory_ggplot, file = trajectory_path)
 
     # metadata object
     if (verbose) print("Writing the metadata object...")
-    metadata_path <- file.path(folder_path, "metadata.qs")
+    metadata_path <- file.path(folder_path, "metadata.qs2")
     mtd_df <- as.data.frame(monocle_object@colData)
     mtd_df$pseudotime <- psd_values$recommended_pseudotime[rownames(mtd_df)]
     mtd_df <- cbind(mtd_df, monocle_object@int_colData$reducedDims$UMAP)
-    qs::qsave(mtd_df, file = metadata_path)
+    qs2::qs_save(mtd_df, file = metadata_path)
     
     # diet monocle object
     if (verbose) print("Writing the diet monocle object...")
-    mon_path <- file.path(folder_path, "diet_monocle_object.qs")
+    mon_path <- file.path(folder_path, "diet_monocle_object.qs2")
     monocle_object <- diet_monocle_object(monocle_object)
     gc()
-    qs::qsave(monocle_object, file = mon_path, nthreads = nthreads)
+    qs2::qs_save(monocle_object, file = mon_path, nthreads = nthreads)
 
     # gene clustering
     skip_clustering <- length(clustering_parameters) == 0
     if (!skip_clustering) {
         if (verbose) print("Applying clustering and stability assessment...")
-        assess_path <- file.path(folder_path, "full_stability_assessment.qs")
+        assess_path <- file.path(folder_path, "full_stability_assessment.qs2")
         clusters_path <- file.path(folder_path, "stable_modules.csv")
 
         clustering_parameters[["merge_identical_partitions"]] <- TRUE
@@ -381,10 +383,10 @@ starlng_write_app_monocle <- function(folder_path,
         }
         if (verbose) print("Writing clustering results...")
 
-        qs::qsave(clust_results, file = assess_path, nthreads = nthreads)
+        qs2::qs_save(clust_results, file = assess_path, nthreads = nthreads)
         best_config <- select_best_configuration(clust_results)
         message("Best configuration: n_neigh - ", best_config[[1]], ", quality function - ", best_config[[2]])
-        qs::qsave(best_config, file = file.path(folder_path, "best_configuration.qs"))
+        qs2::qs_save(best_config, file = file.path(folder_path, "best_configuration.qs2"))
         clust_results <- clust_results[[best_config[[1]]]][[best_config[[2]]]]
 
         stb_clust <- ClustAssess::choose_stable_clusters(
@@ -403,17 +405,17 @@ starlng_write_app_monocle <- function(folder_path,
     # expression matrix
     if (verbose) print("Writing the expression matrix...")
     expr_path <- file.path(folder_path, "expression.h5")
-    write_gene_matrix_dense_h5(
+    write_gene_matrix_sparse_h5(
         expr_matrix,
         expr_path,
-        compression_level = compression_level,
-        chunk_size = chunk_size,
-        all_at_once = TRUE
+        compression_level = compression_level
+        # chunk_size = chunk_size,
+        # all_at_once = TRUE
     )
 
     # colours object
     if (verbose) print("Writing the colours object...")
-    colour_path <- file.path(folder_path, "colours.qs")
+    colour_path <- file.path(folder_path, "colours.qs2")
     colour_list <- list(
         "discrete" = generate_discrete_colours(
             mtd_df,
@@ -422,7 +424,7 @@ starlng_write_app_monocle <- function(folder_path,
         ),
         "continuous" = generate_continuous_colours(continuous_colours)
     )
-    qs::qsave(colour_list, file = colour_path)
+    qs2::qs_save(colour_list, file = colour_path)
 }
 
 #' Create Starlng Shiny app from a normalized gene expression matrix
@@ -499,12 +501,14 @@ starlng_write_app_default <- function(folder_path,
                               compression_level = 7,
                               chunk_size = 100,
                               nthreads = 1) {
+    if (verbose) print("Creating the monocle object...")
     monocle_object <- ClustAssess::create_monocle_default(
         normalized_expression_matrix = expression_matrix,
         metadata_df = metadata_df,
         pca_embedding = pca_embedding,
         umap_embedding = umap_embedding
     )
+    gc()
 
     starlng_write_app_monocle(
         folder_path = folder_path,
@@ -614,6 +618,7 @@ starlng_write_app_clustassess <- function(folder_path,
                                   compression_level = 7,
                                   chunk_size = 100,
                                   nthreads = 1) {
+    if (verbose) print("Creating the monocle object...")
     monocle_object <- ClustAssess::create_monocle_from_clustassess(
         normalized_expression_matrix = expression_matrix,
         metadata_df = metadata_df,
@@ -624,6 +629,7 @@ starlng_write_app_clustassess <- function(folder_path,
         stable_n_clusters = stable_n_clusters,
         use_all_genes = use_all_genes
     )
+    gc()
 
     starlng_write_app_monocle(
         folder_path = folder_path,
@@ -726,6 +732,7 @@ starlng_write_app_clustassess_app <- function(folder_path,
                                       compression_level = 7,
                                       chunk_size = 100,
                                       nthreads = 1) {
+    if (verbose) print("Creating the monocle object...")
     monocle_object <- ClustAssess::create_monocle_from_clustassess_app(
         app_folder = ca_app_folder,
         stable_feature_type = stable_feature_type,
