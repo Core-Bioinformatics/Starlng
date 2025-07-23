@@ -117,7 +117,7 @@ ui <- shiny::fluidPage(
 )
 
 server <- function(input, output, session) {
-    prepare_session(shiny::reactive(input$dimension), ", height_ratio, ", ", enrichment_organism, ")
+    prepare_session(session, shiny::reactive(input$dimension), ", height_ratio, ", ", enrichment_organism, ")
     update_gears_width(session)
     update_tabs(session)
     server_metadata_umap(\"metadata_umap\")

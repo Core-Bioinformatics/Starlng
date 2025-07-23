@@ -154,3 +154,13 @@ read_qs_format <- function(fl_path) {
 
     stop(paste0("File not found: ", fl_path, "2"))
 }
+
+gene_name_transformation <- function(gene_name) {
+    gene_name <- toupper(gene_name)
+    gene_name <- gsub(" ", "", gene_name)
+    gene_name <- gsub("-", "", gene_name)
+    gene_name <- gsub("_", "", gene_name)
+    gene_name <- gsub("\\.", "", gene_name)
+
+    return(gene_name)
+}

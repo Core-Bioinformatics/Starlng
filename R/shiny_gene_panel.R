@@ -14,7 +14,32 @@ ui_gene_umap_panel <- function(id) {
                 multiple = TRUE,
                 width = "100%",
                 options = list(
-                    plugins = list("remove_button", "drag_drop")
+                    plugins = list("remove_button", "drag_drop"),
+                    delimiter = ",",
+                    create = I("
+                        function(input, callback) {
+                            var transformedInput = input.toUpperCase();
+                            var transformedInput = transformedInput.replace('-', '');
+                            var transformedInput = transformedInput.replace('_', '');
+                            var transformedInput = transformedInput.replace(' ', '');
+                            var transformedInput = transformedInput.replace('\\.', '');
+
+                            if (!(transformedInput in globalGenes)) {
+                                var selectizeInstance = this;
+                                setTimeout(function() {
+                                    selectizeInstance.setTextboxValue('');
+                                }, 0);
+                                return false;
+                            }
+
+                            transformedInput = globalGenes[transformedInput];
+                            return {
+                                value: transformedInput,
+                                label: transformedInput,
+                                text: transformedInput
+                            };
+                        }
+                    ")
                 )
             )
         ),
@@ -70,6 +95,7 @@ ui_gene_umap <- function(id) {
 
     shiny::tagList(
         shiny::h2("Visualisation of gene expression", id = "gene_panel"),
+        ui_gene_info_table(ns("gene_info_table")),
         shiny::splitLayout(
             cellWidths = c("50%", "50%"),
             ui_gene_umap_panel(ns("left")),
@@ -176,6 +202,7 @@ server_gene_umap <- function(id) {
     shiny::moduleServer(
         id,
         function(input, output, session) {
+            filtered_genes <- server_gene_info_table("gene_info_table")
             for (panel in c("left", "right")) {
                 shiny::updateSelectizeInput(
                     session,
@@ -185,9 +212,7 @@ server_gene_umap <- function(id) {
                     server = TRUE,
                     options = list(
                         placeholder = "Select gene(s)",
-                        maxOptions = 7,
-                        create = TRUE,
-                        persist = TRUE
+                        maxOptions = 7
                     )
                 )
 
@@ -205,6 +230,8 @@ server_gene_umap <- function(id) {
             }
             server_gene_umap_panel("left")
             server_gene_umap_panel("right")
+
+            return(filtered_genes)
         }
     )
 }

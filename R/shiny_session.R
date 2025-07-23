@@ -28,12 +28,23 @@ ui_global_setttings <- function() {
                 }",
                 ".empty-space {
                     margin-bottom: 200px;
+                }",
+                ".selectize-control.multi .selectize-input.has-items {
+                    height: auto;
+                    overflow-y: auto;
+                    white-space: normal;
+                    flex-wrap: wrap;
                 }"
             )
         ),
         shiny::tags$head(shiny::tags$script(shiny::HTML('
             var dimension = [0, 0];
             var resizeId;
+            var globalGenes = null;
+            Shiny.addCustomMessageHandler("genes", function(message) {
+                console.log("Received genes message:")
+                globalGenes = message;
+            });
             $(document).on("shiny:connected", function(e) {
                 dimension[0] = window.innerWidth - 20;
                 dimension[1] = window.innerHeight - 30;
@@ -81,7 +92,7 @@ ui_global_setttings <- function() {
 #' in the context of the app created using the `starlng_write_app` function.
 #'
 #' @export
-prepare_session <- function(reactive_dim, height_ratio = 0.7, enrichment_organism = "hsapiens") {
+prepare_session <- function(parent_session, reactive_dim, height_ratio = 0.7, enrichment_organism = "hsapiens") {
     RhpcBLASctl::blas_set_num_threads(1)
     
     # NOTE can we put this as a setting for the user to set in the app?
@@ -142,6 +153,14 @@ prepare_session <- function(reactive_dim, height_ratio = 0.7, enrichment_organis
 
     assign("pseudotime_changes", shiny::reactiveVal(0), envir = env)
     assign("organism", enrichment_organism, envir = env)
+    
+    shiny::observe({
+        gene_dict <- as.list(names(env$genes))
+        names(gene_dict) <- sapply(gene_dict, function(x) gene_name_transformation(x))
+        parent_session$sendCustomMessage("genes", gene_dict)
+    }) 
+
+
 }
 
 #' Server - Gear Width
