@@ -153,7 +153,16 @@ prepare_session <- function(parent_session, reactive_dim, height_ratio = 0.7, en
 
     assign("pseudotime_changes", shiny::reactiveVal(0), envir = env)
     assign("organism", enrichment_organism, envir = env)
-    
+    assign("added_metadata", shiny::reactiveVal(NULL), envir = env)
+    assign("psd_ordering", shiny::reactiveVal(list()), envir = env)
+    assign("psd_value", shiny::reactiveVal(env$recommended_psd$recommended_pseudotime), envir = env)
+    assign("modules_summaries", shiny::reactiveVal(NULL), envir = env)
+    assign("modules_summaries_scaled", shiny::reactiveVal(NULL), envir = env)
+    assign("modules_mask", shiny::reactiveVal(NULL), envir = env)
+    assign("modules_stats", shiny::reactiveVal(NULL), envir = env)
+    assign("modules_stats_summary", shiny::reactiveVal(NULL), envir = env)
+    assign("trigger4", shiny::reactiveVal(FALSE), envir = env)
+
     shiny::observe({
         gene_dict <- as.list(names(env$genes))
         names(gene_dict) <- sapply(gene_dict, function(x) gene_name_transformation(x))
