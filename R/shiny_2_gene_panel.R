@@ -54,8 +54,15 @@ ui_gene_umap_panel <- function(id) {
                 inputId = ns("expr_threshold_perc"),
                 label = "Expression %threshold",
                 min = 0, max = 100, value = 50, step = 0.5,
-                width = "45%"
-            )
+                width = "90%"
+            ),
+            shiny::sliderInput(
+                inputId = ns("top_perc"),
+                label = "Top %cells",
+                min = 0, max = 100, value = 100, step = 0.1,
+                width = "90%"
+            ),
+            cellWidths = c("20%", "40%", "40%")
         ),
         shiny::splitLayout(
             shiny::numericInput(
@@ -75,7 +82,8 @@ ui_gene_umap_panel <- function(id) {
             gear_umaps(ns, "settings", "highest"),
             gear_download(ns, "umap", "gene")
         ),
-        shiny::plotOutput(ns("umap_plot"), height = "auto")
+        shiny::plotOutput(ns("umap_plot"), height = "auto"),
+        DT::dataTableOutput(ns("gene_table"))
     )
 }
 
@@ -110,7 +118,7 @@ server_gene_umap_panel <- function(id) {
         id,
         function(input, output, session) {
             umap_ggplot <- shiny::reactive({
-                shiny::req(input$gene, input$expr_threshold_perc, input$expr_threshold, input$relaxation, input$summarise_expr)
+                shiny::req(input$gene, input$expr_threshold_perc, input$expr_threshold, input$relaxation, input$summarise_expr, input$top_perc)
                 req_gear_umap(session, "settings")
 
                 colourbar_width <- min(
@@ -124,6 +132,7 @@ server_gene_umap_panel <- function(id) {
                         gene_name = input$gene,
                         thresh_percentile = input$expr_threshold_perc,
                         thresh_value = input$expr_threshold,
+                        top_perc_value = input$top_perc / 100,
                         n_coexpressed_threshold = length(input$gene) - input$relaxation,
                         scale_values = input$settings_scale,
                         summarise_expr = input$summarise_expr,
