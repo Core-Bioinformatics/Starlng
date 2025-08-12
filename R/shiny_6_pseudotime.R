@@ -2,6 +2,8 @@
 NULL
 
 ###### UI ######
+
+
 ui_cell_select_filter <- function(id) {
     ns <- shiny::NS(id)
 
@@ -128,7 +130,7 @@ ui_pseudotime_select_cells <- function(id) {
     ns <- shiny::NS(id)
 
     shiny::tagList(
-        shiny::h2("Pseudotime inference", id = "pseudotime_panel"),
+        shiny::h2("Pseudotime inference"),
         shiny::splitLayout(
             cellWidths = c("50%", "50%"),
             ui_pseudotime_select_cells_panel(ns("start")),
@@ -140,6 +142,11 @@ ui_pseudotime_select_cells <- function(id) {
                     ns("psd_button"),
                     "Calculate pseudotime!",
                     class = "btn-danger"
+                ),
+                shiny::actionButton(
+                    ns("psd_reset"),
+                    "Reset pseudotime",
+                    class = "btn-default"
                 ),
                 gear_umaps(ns, "settings", "highest"),
                 shiny::plotOutput(ns("pseudotime_plot"), height = "auto")
@@ -422,10 +429,11 @@ server_pseudotime_select_cells <- function(id) {
                 selected = names(env$color_options$continuous)[1]
             )
 
+
             start_cells <- server_pseudotime_select_cells_panel("start")
             end_cells <- server_pseudotime_select_cells_panel("end")
 
-            pseudotime_value <- shiny::reactive({
+            shiny::observe({
                 shiny::req(start_cells(), end_cells())
 
                 shiny::isolate({
@@ -457,17 +465,27 @@ server_pseudotime_select_cells <- function(id) {
                     temp_mtd_df$pseudotime <- psd_value
                     assign("mtd_df", temp_mtd_df, envir = env)
 
-                    return(psd_value)
+                    env$psd_value(psd_value)
                 })
             }) %>% shiny::bindEvent(input$psd_button)
 
             shiny::observe({
-                shiny::req(pseudotime_value(), env$window_dim())
+                env$psd_value(env$recommended_psd$recommended_pseudotime)
+                temp_mtd_df <- env$mtd_df
+                temp_mtd_df$pseudotime <- env$recommended_psd$recommended_pseudotime
+                assign("mtd_df", temp_mtd_df, envir = env)
+
+            }) %>% shiny::bindEvent(input$psd_reset)
+
+            shiny::observe({
+                pseudotime_value <- env$psd_value()
+                wdim <- env$window_dim()
 
                 shiny::isolate({
+                    shiny::req(pseudotime_value, wdim)
                     plt_height <- min(
-                        floor(env$height_ratio * env$window_dim()[2]),
-                        env$window_dim()[1]
+                        floor(env$height_ratio * wdim[2]),
+                        wdim[1]
                     )
 
                     output$pseudotime_plot <- shiny::renderPlot(
@@ -476,7 +494,7 @@ server_pseudotime_select_cells <- function(id) {
                         {
                             gplot_obj <- plot_umap(
                                 umap_embedding = env$umap_df,
-                                cell_info = pseudotime_value(),
+                                cell_info = pseudotime_value,
                                 mtd_name = "pseudotime",
                                 cell_sort_order = input$settings_pt_order,
                                 cell_size = input$settings_pt_size,
