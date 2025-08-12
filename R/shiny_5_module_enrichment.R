@@ -54,7 +54,7 @@ ui_module_enrichment <- function(id) {
             ))
         ),
         shiny::textOutput(ns("enrichment_message")),
-        plotly::plotlyOutput(ns("enrichment_plot"), height = "auto"),
+        plotly::plotlyOutput(ns("enrichment_plot")),
         DT::dataTableOutput(ns("enrichment_table")),
         shiny::downloadButton(
             outputId = ns("download_enrichment"),
@@ -128,28 +128,32 @@ server_module_enrichment <- function(id) {
 
 
             shiny::observe({
-                shiny::req(!is.null(gprof_result()$result), cancelOutput = TRUE)
+                wdim <- env$window_dim()
+                gprf_res <- gprof_result()
 
                 shiny::isolate({
+                    shiny::req(!is.null(gprf_res$result), wdim, cancelOutput = TRUE)
                     output$enrichment_table <- DT::renderDT({
-                        shiny::req(!is.null(gprof_result()))
-                        df <- gprof_result()$result
+                        shiny::req(!is.null(gprf_res))
+                        df <- gprf_res$result
                         df <- df[, 3:(ncol(df) - 2)]
                         df$source <- factor(df$source)
                         return(DT::datatable(df, filter = "top"))
                     })
 
-                    output$enrichment_plot <- plotly::renderPlotly({
-                        shiny::req(!is.null(gprof_result()))
-                        gprofiler2::gostplot(gprof_result())
-                    })
+                    output$enrichment_plot <- plotly::renderPlotly(
+                        {
+                            shiny::req(!is.null(gprf_res))
+                            gprofiler2::gostplot(gprf_res)
+                        }
+                    )
 
                     output$download_enrichment <- shiny::downloadHandler(
                         filename = function() {
                             "enrichment_results.csv"
                         },
                         content = function(file) {
-                            utils::write.csv(gprof_result()$result, file)
+                            utils::write.csv(gprf_res$result, file)
                         }
                     )
                 })

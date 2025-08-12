@@ -280,6 +280,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                             index_genes = env$genes[filtered_genes()],
                             check_intersect = FALSE
                         ),
+                        # expr_matrix = env$expr_mat[env$genes[filtered_genes()], , drop = FALSE],
                         approx = TRUE
                     ),
                     n_neighbours = input$n_neighbours,
@@ -711,6 +712,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                     module <- clust_df[[input$tabset]]()[, input$gene_clusters_options]
                     names(module) <- rownames(clust_df[[input$tabset]]())
                     env$chosen_modules(split(names(module), module))
+                    print(paste(Sys.time(), "Selected module:", input$gene_clusters_options))
                 })
             }) %>% shiny::bindEvent(input$select_module)
 
