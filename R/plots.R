@@ -125,6 +125,8 @@ plot_umap <- function(umap_embedding,
                       cell_alpha = 0.8,
                       legend_text_size = 10,
                       axis_text_size = 10,
+                      show_labels = TRUE,
+                      label_size = 10,
                       colourbar_width = 50,
                       discrete_colors = NULL,
                       continuous_colors = NULL) {
@@ -144,9 +146,12 @@ plot_umap <- function(umap_embedding,
         mtd_name <- paste(mtd_name, "(scaled)")
     }
 
+    # TODO add fast_rendering option with scattermost and take care of faceting
+
     gplot_obj <- ggplot2::ggplot(df, ggplot2::aes(
         x = .data$UMAP1, y = .data$UMAP2, colour = .data$cell_info)) +
         ggplot2::geom_point(size = cell_size, alpha = cell_alpha) +
+        # scattermore::geom_scattermore(pointsize = cell_size * 2, alpha = cell_alpha) +
         ggplot2::theme_bw() +
         ggplot2::theme(
             legend.position = "bottom",
@@ -175,9 +180,27 @@ plot_umap <- function(umap_embedding,
             return(gplot_obj)
         }
 
-        n_unique <- length(unique(df$cell_info))
+        unique_vals <- unique(df$cell_info)
+
+        n_unique <- length(unique_vals)
         used_colors <- discrete_colors[[as.character(n_unique)]]
 
+        if (show_labels) {
+            summary_median <- df %>% 
+                dplyr::group_by(.data$cell_info) %>%
+                dplyr::summarise(gmed = list(Gmedian::Gmedian(cbind(.data$UMAP1, .data$UMAP2))[1, ]), .groups = "drop") %>%
+                tidyr::unnest_wider(.data$gmed, names_sep = " ") 
+            colnames(summary_median)[2:3] <- c("UMAP1", "UMAP2")
+
+            gplot_obj <- gplot_obj +
+                ggplot2::geom_text(
+                    data = summary_median,
+                    ggplot2::aes(label = .data$cell_info, x = .data$UMAP1, y = .data$UMAP2),
+                    size = label_size,
+                    colour = "black",
+                    vjust = -0.5
+                )
+        }
 
         return(gplot_obj + ggplot2::scale_color_manual(values = used_colors))
     }
@@ -202,6 +225,7 @@ plot_umap_gene <- function(umap_embedding,
                            gene_name,
                            thresh_percentile,
                            thresh_value,
+                           top_perc_value,
                            n_coexpressed_threshold,
                            summarise_expr,
                            scale_values = FALSE,
@@ -223,6 +247,15 @@ plot_umap_gene <- function(umap_embedding,
         NULL
     )
 
+    # summary_function <- switch(
+    #     summarise_expr,
+    #     "binary" = NULL,
+    #     "average expressed" = function(x, idx) { DelayedMatrixStats::colSums2(x, cols = idx) / DelayedMatrixStats::colCounts(x > 0, cols = idx) },
+    #     "average" = function(x, idx) { DelayedMatrixStats::colMeans2(x, cols = idx) },
+    #     "#genes" = function(x, idx) { DelayedMatrixStats::colCounts(x > 0, cols = idx) },
+    #     NULL
+    # )
+
     if (summarise_expr != "binary") {
         legend_name <- "Gene expression"
         cell_ordering <- cell_sort_order
@@ -239,6 +272,9 @@ plot_umap_gene <- function(umap_embedding,
         n_coexpressed_thresh = n_coexpressed_threshold,
         summary_function = summary_function
     )
+
+    qval <- quantile(gene_info[gene_info > 0], 1 - top_perc_value)
+    gene_info[gene_info < qval] <- 0
 
     gplot_obj <- plot_umap(
         umap_embedding = umap_embedding,
@@ -273,6 +309,7 @@ plot_umap_gene_shiny <- function(shiny_env,
                                  gene_name,
                                  thresh_percentile,
                                  thresh_value,
+                                 top_perc_value,
                                  n_coexpressed_threshold,
                                  summarise_expr,
                                  scale_values = FALSE,
@@ -290,6 +327,11 @@ plot_umap_gene_shiny <- function(shiny_env,
         index_genes = shiny_env$genes[gene_name],
         check_intersect = FALSE
     )
+    # gene_matrix <- read_gene_from_sparse_h5(
+    #     gene_names = gene_name,
+    #     index_genes = shiny_env$genes[gene_name],
+    #     sparse_mat = shiny_env$expr_mat
+    # )
 
     plot_umap_gene(
         umap_embedding = shiny_env$umap_df,
@@ -297,6 +339,7 @@ plot_umap_gene_shiny <- function(shiny_env,
         gene_name = gene_name,
         thresh_percentile = thresh_percentile,
         thresh_value = thresh_value,
+        top_perc_value = top_perc_value,
         scale_values = scale_values,
         n_coexpressed_threshold = n_coexpressed_threshold,
         summarise_expr = summarise_expr,
@@ -399,6 +442,8 @@ plot_umap_gene_modules_shiny_2 <- function(module_summaries,
         cell_ordering <- cell_sort_order
     }
 
+    print(paste(Sys.time(), "Generating plots for gene modules..."))
+
     plot_list <- lapply(names(module_summaries), function(gene_module) {
         gc()
         gplot_obj <- plot_umap(
@@ -431,6 +476,7 @@ plot_umap_gene_modules_shiny_2 <- function(module_summaries,
 
     names(plot_list) <- names(module_summaries)
 
+    # TODO check if guides = "collect" works or not
     max_value <- max(sapply(plot_list, function(plot) {
         max(plot$data$cell_info)
     }))
@@ -451,6 +497,8 @@ plot_umap_gene_modules_shiny_2 <- function(module_summaries,
                 )
             )
     }
+
+    print(paste(Sys.time(), "Finalised plots for gene modules..."))
 
     patchwork::wrap_plots(plotlist = plot_list, ncol = n_columns) +
         patchwork::plot_layout(guides = "collect") &
@@ -534,7 +582,7 @@ generate_cell_heatmap <- function(expression_matrix,
         if (nfams == 1) {
             cols <- c("#033d03")
         } else {
-            cols <- qualpalr::qualpal(n = nfams, colorspace = "pretty_dark")$hex
+            cols <- qualpalr::qualpal(n = nfams)$hex
         }
     } else {
         cols <- discrete_colour_list[[as.character(nfams)]]
@@ -601,8 +649,6 @@ generate_cell_heatmap <- function(expression_matrix,
         row_names_gp = grid::gpar(fontsize = axis_text_size),
         show_column_names = FALSE,
         show_row_names = FALSE,
-        use_raster = TRUE,
-        raster_by_magick = (ncells <= 10000),
         col = continuous_colors,
         bottom_annotation = bottom_ha,
         left_annotation = left_ha,

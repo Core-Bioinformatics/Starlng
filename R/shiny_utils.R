@@ -164,3 +164,76 @@ gene_name_transformation <- function(gene_name) {
 
     return(gene_name)
 }
+
+calculate_pseudotime_iqr_coverage <- function(mtd_df) {
+    # this will calculate the sum of the area covered by the intervals defined by the q1 and q3 values
+    mtd_df <- mtd_df[order(mtd_df$Q1, mtd_df$Q3), ]
+    prev_start <- mtd_df$Q1[1]
+    prev_end <- mtd_df$Q3[1]
+    coverage <- prev_end - prev_start
+    
+    if (nrow(mtd_df) == 1) {
+        return(coverage)
+    }
+
+    for (i in seq(from = 2, to = nrow(mtd_df))) {
+        curr_start <- mtd_df$Q1[i]
+        curr_end <- mtd_df$Q3[i]
+
+        if (curr_start > prev_end) {
+            coverage <- coverage + (curr_end - curr_start)
+            prev_end <- curr_end
+            prev_start <- curr_start
+            next
+        }
+
+        if (curr_end > prev_end) {
+            coverage <- coverage + (curr_end - prev_end)
+            prev_end <- curr_end
+        }
+
+        prev_start <- curr_start
+    }
+
+    return(coverage)
+}
+
+calculate_umap_average_distance <- function(umap_df, selected_cells = NULL) {
+    if (is.null(selected_cells)) {
+        selected_cells <- seq_len(nrow(umap_df))
+    }
+
+    if (length(selected_cells) < 2) {
+        return(0)
+    }
+
+    umap_df <- as.matrix(umap_df[selected_cells, ])
+    # calculate centroid 
+    centroid <- colMeans(umap_df, na.rm = TRUE)
+    umap_df[, 1] <- umap_df[, 1] - centroid[1]
+    umap_df[, 2] <- umap_df[, 2] - centroid[2]
+    umap_df <- umap_df ^ 2
+    umap_df <- rowSums(umap_df, na.rm = TRUE) ^ 0.5
+
+    # dist_matrix <- as.matrix(dist(umap_df))
+    # dist_matrix[dist_matrix == 0] <- NA
+    # mean_distance <- mean(dist_matrix, na.rm = TRUE)
+
+    return(umap_df)
+}
+
+mad_z_score <- function(x) {
+    if (length(x) < 2) {
+        return(rep(FALSE, length(x)))
+    }
+
+    med <- median(x, na.rm = TRUE)
+    mad_val <- mad(x, constant = 1, na.rm = TRUE)
+
+    if (mad_val == 0) {
+        return(rep(0, length(x)))
+    }
+
+    z_scores <- (x - med) / mad_val
+    return(z_scores)
+}
