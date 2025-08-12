@@ -73,6 +73,8 @@ server_metadata_umap_panel <- function(id) {
                         cell_alpha = input$settings_pt_alpha,
                         legend_text_size = input$settings_legend_size,
                         axis_text_size = input$settings_axis_size,
+                        show_labels = input$settings_labels,
+                        label_size = input$settings_text_size,
                         discrete_colors = env$color_options$discrete,
                         colourbar_width = colourbar_width,
                         continuous_colors = env$color_options$continuous[[input$settings_colour_scheme]]
