@@ -366,8 +366,8 @@ server_module_table_prepare <- function(id, parent_session) {
                     outlier_result <- detect_outlier(
                         modules_stats = modules_stats_summary,
                         cell_masks = module_mask,
-                        thresh_psd_good = (quantile(psd_value, 0.95, na.rm = TRUE) - quantile(psd_value, 0.05, na.rm = TRUE)) / 10,
-                        thresh_psd_bad = (quantile(psd_value, 0.95, na.rm = TRUE) - quantile(psd_value, 0.05, na.rm = TRUE)) / 3
+                        thresh_psd_good = (stats::quantile(psd_value, 0.95, na.rm = TRUE) - stats::quantile(psd_value, 0.05, na.rm = TRUE)) / 10,
+                        thresh_psd_bad = (stats::quantile(psd_value, 0.95, na.rm = TRUE) - stats::quantile(psd_value, 0.05, na.rm = TRUE)) / 3
                     )
                     modules_stats_summary[outlier_result$outliers, "is_outlier"] <- "yes"
                     modules_stats_summary[outlier_result$non_eligible, "is_outlier"] <- "redundant"

@@ -83,11 +83,16 @@ ui_global_setttings <- function() {
 #' @description Creates the backend interface that initializes the variables
 #' and the environment used inside the Starlng Shiny application.
 #'
+#' @param parent_session An object linking to the Shiny session of the parent
+#' container.
 #' @param reactive_dim A reactive variable that returns the dimensions of the
 #' browser window. This reactive variable is used to update the dimensions of
 #' the plots inside the Shiny app.
 #' @param height_ratio Variable indicating the ratio between the height of the
 #' plots and the height of the browser window.
+#' @param enrichment_organism The organism to be used for the gene enrichment
+#' analysis. Defaults to "hsapiens" (human). For the list of supported organisms,
+#' please consult the `gprofiler2` package documentation.
 #'
 #' @note This function is a shiny module function and should be used
 #' in the context of the app created using the `starlng_write_app` function.
