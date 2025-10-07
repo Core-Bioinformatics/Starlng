@@ -82,6 +82,7 @@ get_clusters_consistency <- function(by_cluster_list, order_logic = "avg_agreeme
         }
         return(by_cluster_list)
     }
+    k_list <- NULL
 
     k_values <- names(by_cluster_list$k)
     by_cluster_list$k <- foreach::foreach (

@@ -466,6 +466,7 @@ server_pseudotime_select_cells <- function(id) {
                     assign("mtd_df", temp_mtd_df, envir = env)
 
                     env$psd_value(psd_value)
+                    shinyjs::enable("psd_button")
                 })
             }) %>% shiny::bindEvent(input$psd_button)
 
@@ -512,8 +513,6 @@ server_pseudotime_select_cells <- function(id) {
                             gplot_obj
                         }
                     )
-
-                    shinyjs::enable("psd_button")
                 })
             })
         }

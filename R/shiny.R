@@ -3,7 +3,7 @@
 generate_discrete_colours <- function(metadata_df,
                                       existing_colours_list = NULL,
                                       max_n_colors = 40,
-                                      qualpal_pallete = "pretty_dark") {
+                                      qualpal_pallete = list(h = c(0, 360), s = c(0.2, 0.5), l = c(0.6, 0.85))) {
     if (is.null(existing_colours_list)) {
         existing_colours_list <- list()
     }
@@ -77,11 +77,6 @@ ui <- shiny::fluidPage(
             ui_metadata_umap(\"metadata_umap\")
         ),
         shiny::tabPanel(
-            title = \"Gene Table\",
-            value = \"gene_info_table\",
-            ui_gene_info_table(\"gene_info_table\")
-        ),
-        shiny::tabPanel(
             title = \"Gene UMAP\",
             value = \"gene_umap\",
             ui_gene_umap(\"gene_umap\")
@@ -117,12 +112,12 @@ ui <- shiny::fluidPage(
 )
 
 server <- function(input, output, session) {
-    prepare_session(session, shiny::reactive(input$dimension), ", height_ratio, ", ", enrichment_organism, ")
+    prepare_session(session, shiny::reactive(input$dimension), ", height_ratio, ", '", enrichment_organism, "')
     update_gears_width(session)
     update_tabs(session)
     server_metadata_umap(\"metadata_umap\")
-    filtered_genes <- server_gene_info_table(\"gene_info_table\")
-    server_gene_umap(\"gene_umap\")
+    # filtered_genes <- server_gene_info_table(\"gene_info_table\")
+    filtered_genes <- server_gene_umap(\"gene_umap\")
     server_gene_clustering(\"gene_clustering\", filtered_genes)
     server_module_umap(\"module_umap\")
     server_module_enrichment(\"module_enrichment\")
@@ -407,12 +402,13 @@ starlng_write_app_monocle <- function(folder_path,
     # expression matrix
     if (verbose) print("Writing the expression matrix...")
     expr_path <- file.path(folder_path, "expression.h5")
-    write_gene_matrix_sparse_h5(
+    # write_gene_matrix_sparse_h5(
+    write_gene_matrix_dense_h5(
         expr_matrix,
         expr_path,
-        compression_level = compression_level
-        # chunk_size = chunk_size,
-        # all_at_once = TRUE
+        compression_level = compression_level,
+        chunk_size = chunk_size,
+        all_at_once = TRUE
     )
 
     # colours object
