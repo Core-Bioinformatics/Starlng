@@ -1,9 +1,9 @@
 save_filetypes <- list(
-    "PDF" = pdf,
+    "PDF" = grDevices::pdf,
     "PNG" = function(filename, width, height) {
         ragg::agg_png(filename, width, height, units = "in")
     },
-    "SVG" = svg
+    "SVG" = grDevices::svg
 )
 
 gear_umaps <- function(ns, id, default_order = "default", contains_continuous = TRUE, scale_default = FALSE) {
@@ -125,7 +125,7 @@ req_gear_umap <- function(session, id = "settings") {
 req_gear_heatmap <- function(session, pseudobulk = TRUE) {
     used_vars <- c("scale_values", "axis_size", "legend_size", "colour_scheme", "cap_value")
     if (pseudobulk) {
-        used_vars <- c(used_vars, "summarise_expr", "text_size")
+        used_vars <- c(used_vars, "summarise_expr", "text_size", "point_size")
     } else {
         used_vars <- c(used_vars, "k_smooth" )
     }
@@ -215,10 +215,6 @@ calculate_umap_average_distance <- function(umap_df, selected_cells = NULL) {
     umap_df <- umap_df ^ 2
     umap_df <- rowSums(umap_df, na.rm = TRUE) ^ 0.5
 
-    # dist_matrix <- as.matrix(dist(umap_df))
-    # dist_matrix[dist_matrix == 0] <- NA
-    # mean_distance <- mean(dist_matrix, na.rm = TRUE)
-
     return(umap_df)
 }
 
@@ -227,8 +223,8 @@ mad_z_score <- function(x) {
         return(rep(FALSE, length(x)))
     }
 
-    med <- median(x, na.rm = TRUE)
-    mad_val <- mad(x, constant = 1, na.rm = TRUE)
+    med <- stats::median(x, na.rm = TRUE)
+    mad_val <- stats::mad(x, center = med, constant = 1, na.rm = TRUE)
 
     if (mad_val == 0) {
         return(rep(0, length(x)))
@@ -236,4 +232,52 @@ mad_z_score <- function(x) {
 
     z_scores <- (x - med) / mad_val
     return(z_scores)
+}
+
+detect_outlier <- function(modules_stats, cell_masks, thresh_psd_good, thresh_psd_bad) {
+    modules_stats <- modules_stats %>% dplyr::arrange(.data$iqr_pseudotime, .data$median_umap_distance)
+    non_eligible <- c()
+
+    is_outlier <- mad_z_score(modules_stats$iqr_pseudotime) > 3.5 & mad_z_score(modules_stats$median_umap_distance) > 3.5
+    is_outlier[modules_stats$iqr_pseudotime >= thresh_psd_bad] <- TRUE
+
+    outliers <- rownames(modules_stats)[is_outlier]
+    covered_mask <- rep(FALSE, ncol(cell_masks))
+    for (i in seq_len(nrow(modules_stats))) {
+        if (is_outlier[i]) {
+            next
+        }
+
+        current_mask <- cell_masks[rownames(modules_stats)[i], ]
+        ncells <- sum(current_mask)
+        if (ncells < 10) {
+            non_eligible <- c(non_eligible, rownames(modules_stats)[i])
+            next
+        }
+        temp_mask <- covered_mask | current_mask
+        nunique <- sum(temp_mask) - sum(covered_mask)
+        iqr <- modules_stats$iqr_pseudotime[i]
+        eligible <- TRUE
+
+        if (ncells < 100 && nunique / ncells < 0.6) {
+            eligible <- FALSE
+        }
+        if (ncells >= 100 && nunique / ncells < 0.2) {
+            eligible <- FALSE
+        }
+        
+        if (iqr < thresh_psd_good) {
+            eligible <- TRUE
+        }
+        if (!eligible) {
+            non_eligible <- c(non_eligible, rownames(modules_stats)[i])
+        } else {
+            covered_mask <- temp_mask
+        }
+    }
+
+    return(list(
+        "outliers" = outliers,
+        "non_eligible" = non_eligible
+    ))
 }
