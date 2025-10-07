@@ -273,8 +273,10 @@ plot_umap_gene <- function(umap_embedding,
         summary_function = summary_function
     )
 
-    qval <- quantile(gene_info[gene_info > 0], 1 - top_perc_value)
-    gene_info[gene_info < qval] <- 0
+    if (summarise_expr != "binary") {
+        qval <- stats::quantile(gene_info[gene_info > 0], 1 - top_perc_value)
+        gene_info[gene_info < qval] <- 0
+    }
 
     gplot_obj <- plot_umap(
         umap_embedding = umap_embedding,
@@ -605,7 +607,7 @@ generate_cell_heatmap <- function(expression_matrix,
         if (n_unique_mtd == 1) {
             mtd_cols <- c("#033d03")
         } else {
-            mtd_cols <- qualpalr::qualpal(n = n_unique_mtd, colorspace = "pretty_dark")$hex
+            mtd_cols <- qualpalr::qualpal(n = n_unique_mtd)$hex
         }
     } else {
         mtd_cols <- discrete_colour_list[[as.character(n_unique_mtd)]]
