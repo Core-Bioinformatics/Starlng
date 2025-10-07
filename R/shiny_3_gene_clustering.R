@@ -545,7 +545,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                         if (length(specific_1) != 0) {
                             second_clusters <- c(
                                 second_clusters,
-                                setNames(rep("other", length(specific_1)), specific_1)
+                                stats::setNames(rep("other", length(specific_1)), specific_1)
                             )
                             unique_second <- c(unique_second, "other")
                         }
@@ -554,7 +554,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                         if (length(specific_2) != 0) {
                             first_clusters <- c(
                                 first_clusters,
-                                setNames(rep("other", length(specific_2)), specific_2)
+                                stats::setNames(rep("other", length(specific_2)), specific_2)
                             )
                             unique_first <- c(unique_first, "other")
                         }
@@ -708,6 +708,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                 shiny::req(input$gene_clusters_options, clust_df[[input$tabset]]())
 
                 shiny::isolate({
+                    env$modules_table_spearman(NULL)
                     shinyjs::disable("select_module")
                     module <- clust_df[[input$tabset]]()[, input$gene_clusters_options]
                     names(module) <- rownames(clust_df[[input$tabset]]())
