@@ -10,12 +10,12 @@ ui_module_table <- function(id) {
             shiny::sliderInput(
                 inputId = ns("top_cells_percent"),
                 label = "Top cells (%)",
-                min = 0, max = 100, value = 75, step = 0.1
+                min = 0, max = 100, value = 100, step = 0.1
             ),
             shiny::sliderInput(
                 inputId = ns("scale_threshold"),
                 label = "Scale threshold",
-                min = 0, max = 1, value = 0.4, step = 0.01
+                min = 0, max = 1, value = 0.5, step = 0.01
             ),
             shinyWidgets::radioGroupButtons(
                 inputId = ns("summarise_expr"),
@@ -55,6 +55,68 @@ ui_grid_umaps <- function(id) {
     )
 }
 
+ui_module_heatmap <- function(id) {
+    ns <- shiny::NS(id)
+    
+    shiny::tagList(
+        shiny::h2("Module relationship heatmap", id = "gene_modules_heatmap_panel"),
+        shiny::splitLayout(
+            cellWidths = "40px",
+            shinyWidgets::dropdownButton(
+                inputId = ns("heatmap_settings"),
+                shiny::tagList(
+                    shiny::numericInput(
+                        inputId = ns("colour_clipping"),
+                        label = "Colour clipping value",
+                        min = 0, value = 500
+                    ),
+                    shiny::sliderInput(
+                        inputId = ns("text_size"),
+                        label = "Text size",
+                        min = 0.00, max = 30.00, value = 15, step = 0.05
+                    ),
+                    shiny::sliderInput(
+                        inputId = ns("axis_size"),
+                        label = "Axis labels size",
+                        min = 0.00, max = 30.00, value = 15, step = 0.05
+                    ),
+                    shiny::sliderInput(
+                        inputId = ns("legend_size"),
+                        label = "Legend size",
+                        min = 0.00, max = 30.00, value = 15, step = 0.05
+                    ),
+                    shiny::sliderInput(
+                        inputId = ns("dend_height"),
+                        label = "Dendogram height (mm)",
+                        min = 1, max = 500, value = 70, step = 1
+                    ),
+                    shiny::selectInput(
+                        inputId = ns("colour_scheme"),
+                        label = "Colour scheme",
+                        choices = c(""),
+                        selected = NULL
+                    )
+                ),
+                label = "",
+                icon = shiny::icon("cog"),
+                status = "success",
+                size = "sm",
+                circle = TRUE
+            ),
+            gear_download(ns, "heatmap", "heatmap")
+        ),
+        shiny::splitLayout(
+            shinyWidgets::radioGroupButtons(
+                inputId = ns("heatmap_info"),
+                label = "Displayed Information",
+                choices = c("Expressed cells", "Expressed cells (JSI)", "Spearman correlation"),
+                selected = "Expressed cells"
+            )
+        ),
+        shiny::plotOutput(ns("modules_heatmap"), height = "auto")
+    )
+}
+
 #' UI - Gene Module UMAP
 #'
 #' @description Creates the UI interface for the Gene Module UMAP panel
@@ -75,21 +137,36 @@ ui_module_umap <- function(id) {
             ui_module_table(ns("gene_modules_table")),
             shiny::tagList(
                 ui_module_pseudotime_expression(ns("gene_modules_pseudotime")),
-                shiny::selectizeInput(
-                    inputId = ns("select_modules"),
-                    label = "Select modules",
-                    choices = NULL,
-                    selected = NULL,
-                    multiple = TRUE,
-                    options = list(
-                        placeholder = "Select modules",
-                        plugins = list("remove_button", "drag_drop"),
-                        delimiter = ","
-                ))
+                shiny::splitLayout(
+                    shiny::selectizeInput(
+                        inputId = ns("select_modules"),
+                        label = "Select modules",
+                        choices = NULL,
+                        selected = NULL,
+                        multiple = TRUE,
+                        options = list(
+                            placeholder = "Select modules",
+                            plugins = list("remove_button", "drag_drop"),
+                            delimiter = ",",
+                            create = TRUE
+                    )),
+                    shiny::actionButton(
+                        inputId = ns("order_modules"),
+                        label = "Order modules",
+                        icon = shiny::icon("sort-numeric-up")
+                    ),
+                    shiny::actionButton(
+                        inputId = ns("reset_modules"),
+                        label = "Reset modules!",
+                        icon = shiny::icon("undo")
+                    ),
+                    shiny::uiOutput(ns("clip"))
+                )
             ),
             cellWidths = c("50%", "45%")
         ),
-        ui_grid_umaps(ns("gene_modules_umap"))
+        ui_grid_umaps(ns("gene_modules_umap")),
+        ui_module_heatmap(ns("gene_modules_heatmap"))
     )
 }
 
@@ -147,6 +224,7 @@ server_module_table_prepare <- function(id, parent_session) {
 
                     scaled_summ <- lapply(summ_list, scale_min_max)
                     names(scaled_summ) <- names(summ_list)
+
                     env$modules_summaries_scaled(scaled_summ)
                 })
             })
@@ -161,6 +239,7 @@ server_module_table_prepare <- function(id, parent_session) {
                     perc_cells <- 1 - thresh_vals$top_cells_percent / 100
                     scale_threshold <- thresh_vals$scale_threshold
                     shiny::req(perc_cells >= 0, perc_cells <= 1, scale_threshold >= 0, scale_threshold <= 1, !is.null(module_summ), psd_value)
+                    psd_mask <- !is.na(psd_value)
 
                     mask_nrow <- length(module_summ)
                     mask_ncol <- length(psd_value)
@@ -171,24 +250,29 @@ server_module_table_prepare <- function(id, parent_session) {
                     rownames(module_cells_table) <- names(module_summ)
                     colnames(module_cells_table) <- names(module_summ)
 
-
                     for (i in seq_along(module_summ)) {
-                        module_mask[i, ] <- module_summ[[i]] > scale_threshold
-                        value_thresh <- quantile(module_summ[[i]][module_mask[i, ]], perc_cells)
+                        module_mask[i, ] <- (module_summ[[i]] > scale_threshold) & psd_mask
+                        if (sum(module_mask[i, ]) < 5) {
+                            next
+                        }
+                        value_thresh <- stats::quantile(module_summ[[i]][module_mask[i, ]], perc_cells)
                         mx_val <- max(module_summ[[i]])
                         if (value_thresh == mx_val) {
                             value_thresh <- 0.99 * mx_val
                         }
-                        module_mask[i, ] <- module_summ[[i]] > value_thresh
+                        module_mask[i, ] <- (module_summ[[i]] >= value_thresh) & psd_mask
                     }
 
-                    for (i in seq(from = 1, to = nrow(module_cells_table) - 1)) {
-                        for (j in seq(from = i + 1, to = ncol(module_cells_table))) {
-                            ncommon_cells <- sum(module_mask[i, ] & module_mask[j, ])
-                            module_cells_table[i, j] <- ncommon_cells
-                            module_cells_table[j, i] <- ncommon_cells
+                    if (nrow(module_cells_table) > 1) {
+                        for (i in seq(from = 1, to = nrow(module_cells_table) - 1)) {
+                            for (j in seq(from = i + 1, to = ncol(module_cells_table))) {
+                                ncommon_cells <- sum(module_mask[i, ] & module_mask[j, ])
+                                module_cells_table[i, j] <- ncommon_cells
+                                module_cells_table[j, i] <- ncommon_cells
+                            }
                         }
                     }
+
                     for (i in seq_len(nrow(module_cells_table))) {
                         unique_cells <- module_mask[i, ] 
                         for (j in seq(from = 1, to = ncol(module_cells_table))) {
@@ -200,29 +284,72 @@ server_module_table_prepare <- function(id, parent_session) {
                         module_cells_table[i, i] <- sum(unique_cells)
                     }
 
+                    module_spearman_matrix <- matrix(NA, nrow = mask_nrow, ncol = mask_nrow)
+                    module_union_cells <- matrix(0, nrow = mask_nrow, ncol = mask_nrow)
+                    rownames(module_spearman_matrix) <- names(module_summ)
+                    colnames(module_spearman_matrix) <- names(module_summ)
+                    rownames(module_union_cells) <- names(module_summ)
+                    colnames(module_union_cells) <- names(module_summ)
+                    for (i in seq_along(module_summ)) {
+                        for (j in seq_along(module_summ)) {
+                            if (i >= j) {
+                                next
+                            }
+                            
+                            mask1 <- module_mask[i, ]
+                            mask2 <- module_mask[j, ]
+                            united_mask <- mask1 | mask2
+                            expr1 <- module_summ[[i]][united_mask]
+                            expr2 <- module_summ[[j]][united_mask]
+
+                            module_union_cells[i, j] <- sum(united_mask)
+                            module_union_cells[j, i] <- sum(united_mask)
+
+                            if (length(expr1) < 5 || length(expr2) < 5) {
+                                module_spearman_matrix[i, j] <- NA
+                                module_spearman_matrix[j, i] <- NA
+                                next
+                            }
+
+                            sp_val <- suppressWarnings(
+                                stats::cor(expr1, expr2, method = "spearman")
+                            )
+                            sp_val <- round(sp_val, 2)
+                            module_spearman_matrix[i, j] <- sp_val
+                            module_spearman_matrix[j, i] <- sp_val
+                        }
+                    }
+
                     env$modules_mask(module_mask)
 
                     modules_stats <- NULL
                     modules_stats_summary <- NULL
                     
                     for (i in seq_along(module_summ)) {
+                        if (sum(module_mask[i, ]) == 0) {
+                            next
+                        }
+                        temp_psd_val <- psd_value[module_mask[i, ]]
+                        if (all(is.na(temp_psd_val))) {
+                            next
+                        }
                         temp_df <- data.frame(
                             avg_expression = module_summ[[i]][module_mask[i, ]],
-                            psd_value = psd_value[module_mask[i, ]],
+                            psd_value = temp_psd_val, #psd_value[module_mask[i, ]],
                             umap_distance = calculate_umap_average_distance(
                                 umap_df = env$umap_df,
                                 selected_cells = which(module_mask[i, ])
                             )
-                        )
+                        ) %>% dplyr::filter(!is.na(psd_value))
                         temp_df$module <- names(module_summ)[i]
 
                         temp_df_summary <- data.frame(
                             module = names(module_summ)[i],
                             n_cells = sum(module_mask[i, ]),
                             avg_expression = round(mean(temp_df$avg_expression, na.rm = TRUE), 3),
-                            median_pseudotime = round(median(temp_df$psd_value, na.rm = TRUE), 3),
-                            iqr_pseudotime = round(IQR(temp_df$psd_value, na.rm = TRUE), 3),
-                            median_umap_distance = round(median(temp_df$umap_distance, na.rm = TRUE), 3)
+                            median_pseudotime = round(stats::median(temp_df$psd_value, na.rm = TRUE), 3),
+                            iqr_pseudotime = round(stats::IQR(temp_df$psd_value, na.rm = TRUE), 3),
+                            median_umap_distance = round(stats::median(temp_df$umap_distance, na.rm = TRUE), 3)
                         )
 
                         if (is.null(modules_stats)) {
@@ -235,38 +362,37 @@ server_module_table_prepare <- function(id, parent_session) {
                     }
                     rownames(modules_stats_summary) <- modules_stats_summary$module
 
-                    modules_stats_summary$is_outlier <- mad_z_score(modules_stats_summary$iqr_pseudotime) > 3.5
+                    modules_stats_summary$is_outlier <- "no"
+                    outlier_result <- detect_outlier(
+                        modules_stats = modules_stats_summary,
+                        cell_masks = module_mask,
+                        thresh_psd_good = (quantile(psd_value, 0.95, na.rm = TRUE) - quantile(psd_value, 0.05, na.rm = TRUE)) / 10,
+                        thresh_psd_bad = (quantile(psd_value, 0.95, na.rm = TRUE) - quantile(psd_value, 0.05, na.rm = TRUE)) / 3
+                    )
+                    modules_stats_summary[outlier_result$outliers, "is_outlier"] <- "yes"
+                    modules_stats_summary[outlier_result$non_eligible, "is_outlier"] <- "redundant"
 
-                    i <- 1
-                    while (i <= nrow(modules_stats_summary) - 1) {
-                        diff_first <- abs(modules_stats_summary$median_pseudotime[i] - modules_stats_summary$median_pseudotime[i + 1])
-                        if (diff_first < 0.1) {
-                            j <- i + 1
-                            while (j <= nrow(modules_stats_summary)) {
-                                diff_next <- abs(modules_stats_summary$median_pseudotime[j] - modules_stats_summary$median_pseudotime[i])
-                                if (diff_next > 0.1) {
-                                    j <- j - 1
-                                    break
-                                }
-                                j <- j + 1
-                            }
-                            if (j > nrow(modules_stats_summary)) {
-                                j <- nrow(modules_stats_summary)
-                            }
-
-                            z_scores <- mad_z_score(modules_stats_summary$iqr_pseudotime[i:j]) > 3.5
-                            modules_stats_summary$is_outlier[i:j] <- modules_stats_summary$is_outlier[i:j] | z_scores
-
-                            i <- j + 1
-                        } else {
-                            i <- i + 1
-                        }
-                    }
                     modules_stats_summary <- modules_stats_summary %>%
                         dplyr::arrange(.data$median_pseudotime, .data$iqr_pseudotime, .data$median_umap_distance)
 
+                    env$modules_table_cells(module_cells_table)
+                    env$modules_union_cells(module_union_cells)
+                    env$modules_table_spearman(module_spearman_matrix)
+
                     env$modules_stats(modules_stats)
                     env$modules_stats_summary(modules_stats_summary)
+
+                    # TODO it would be nice to calculate the moran I for each module aggr expression
+                    # you could theoretically do that by replacing first X genes on the monocle obj
+                    # print(str(module_summ))
+                    # copy_mon <- env$mon_obj[seq_along(module_summ), ]
+                    # rownames(copy_mon) <- names(module_summ)
+                    # module_summ <- do.call(rbind, module_summ)
+                    # colnames(module_summ) <- colnames(copy_mon)
+                    # SummarizedExperiment::assay(copy_mon, "counts") <- module_summ
+
+                    # print(monocle3::graph_test(copy_mon, neighbor_graph = "principal_graph", cores = 1)))
+                    
                 })
             })
         }
@@ -286,7 +412,6 @@ server_module_table <- function(id) {
                             modules_stats,
                             options = list(
                                 pageLength = nrow(modules_stats),
-                                autoWidth = TRUE,
                                 columnDefs = list(
                                     list(
                                         className = "dt-right",
@@ -294,13 +419,15 @@ server_module_table <- function(id) {
                                     )
                                 )
                             ),
+                            colnames = c("module", "n cells", "avg<br>expr", "median<br>psd", "iqr<br>psd", "median<br>UMAP dist", "outlier?"),
+                            escape = FALSE,
                             rownames = FALSE
                         ) %>% DT::formatStyle(
                             "is_outlier",
                             target = "row",
                             backgroundColor = DT::styleEqual(
-                                c(TRUE, FALSE),
-                                c("rgba(255, 0, 0, 0.2)", "transparent")
+                                levels = c("yes", "redundant", "no"),
+                                values = c("transparent", "rgba(252, 186, 3, 0.2)", "rgba(0, 255, 0, 0.2)")
                             )
                         )
                     })
@@ -322,10 +449,12 @@ server_module_pseudotime_expression <- function(id, module_ordering) {
                     shiny::req(psd_df, md_order, cancelOutput = TRUE)
                     plt_height <- wdim[2] * 0.5
                     plt_width <- wdim[1] / 0.45
-                    psd_df <- psd_df %>% dplyr::filter(.data$module %in% md_order)
                     summary_stat_df <- env$modules_stats_summary()
                     unique_groups <- sort(rownames(summary_stat_df))
                     summary_stat_df <- summary_stat_df[md_order, ]
+                    shiny::req(all(md_order %in% unique_groups))
+
+                    psd_df <- psd_df %>% dplyr::filter(.data$module %in% md_order)
 
                     mdl_iqrs <- summary_stat_df %>%
                         dplyr::filter(.data$module %in% md_order) %>%
@@ -337,7 +466,7 @@ server_module_pseudotime_expression <- function(id, module_ordering) {
                         plot_df_small <- psd_df %>%
                             dplyr::filter(.data$module %in% low_iqrs) %>%
                             dplyr::group_by(.data$module) %>%
-                            dplyr::filter(.data$psd_value >= quantile(.data$psd_value, 0.25) & .data$psd_value <= quantile(.data$psd_value, 0.75))
+                            dplyr::filter(.data$psd_value >= stats::quantile(.data$psd_value, 0.25) & .data$psd_value <= stats::quantile(.data$psd_value, 0.75))
                     } else {
                         plot_df_small <- NULL
                     }
@@ -536,7 +665,8 @@ server_grid_umaps <- function(id, module_ordering) {
             })
 
             shiny::observe({
-                shiny::req(composite_plot(), input$filename_module_umap, input$filetype_module_umap, input$width_module_umap, input$height_module_umap)
+                shiny::req(input$filename_module_umap, input$filetype_module_umap, input$width_module_umap, input$height_module_umap)
+                cmp_plot <- composite_plot()
 
                 shiny::isolate({
                     output$download_module_umap <- shiny::downloadHandler(
@@ -544,9 +674,10 @@ server_grid_umaps <- function(id, module_ordering) {
                             paste(input$filename_module_umap, tolower(input$filetype_module_umap), sep = ".")
                         },
                         content = function(file) {
+                            shiny::req(cmp_plot)
                             ggplot2::ggsave(
                                 filename = file,
-                                plot = composite_plot(),
+                                plot = cmp_plot,
                                 width = input$width_module_umap,
                                 height = input$height_module_umap
                             )
@@ -558,6 +689,160 @@ server_grid_umaps <- function(id, module_ordering) {
     )
 }
 
+server_module_heatmap <- function(id, module_ordering) {
+    shiny::moduleServer(
+        id,
+        function(input, output, session) {
+            default_col_scheme <- "blue_red"
+            if (!(default_col_scheme %in% names(env$color_options$continuous))) {
+                default_col_scheme <- names(env$color_options$continuous)[1]
+            }
+            shiny::updateSelectInput(
+                session,
+                inputId = "colour_scheme",
+                choices = names(env$color_options$continuous),
+                selected = default_col_scheme
+            )
+
+            hclust_dends_ncell <- shiny::reactive({
+                mod_ord <- module_ordering()
+                shiny::req(mod_ord)
+                dist_matrix <- env$modules_table_cells()
+                union_tab <- env$modules_union_cells()
+                shiny::req(dist_matrix, union_tab, all(mod_ord %in% rownames(dist_matrix)), identical(rownames(dist_matrix), rownames(union_tab)))
+                shiny::req(nrow(dist_matrix) > 1, nrow(union_tab) > 1)
+                for (i in seq_len(nrow(dist_matrix))) {
+                    union_tab[i, i] <- dist_matrix[i, i]
+                }
+
+                dist_matrix <- 1 - dist_matrix[mod_ord, mod_ord, drop = FALSE] / union_tab[mod_ord, mod_ord, drop = FALSE]
+                return(stats::hclust(stats::as.dist(dist_matrix), method = "average"))
+            })
+
+            hclust_dends_spearman <- shiny::reactive({
+                mod_ord <- module_ordering()
+                shiny::req(mod_ord)
+                dist_matrix <- env$modules_table_spearman()
+                shiny::req(dist_matrix, all(mod_ord %in% rownames(dist_matrix)))
+                shiny::req(nrow(dist_matrix) > 1)
+
+                dist_matrix <- 1 - dist_matrix[mod_ord, mod_ord, drop = FALSE]
+                dist_matrix[is.na(dist_matrix)] <- 100
+                return(stats::hclust(stats::as.dist(dist_matrix), method = "average"))
+            })
+
+            heatmap_obj <- shiny::reactive({
+                mod_ord <- module_ordering()
+                htmp_type <- input$heatmap_info
+                is_spearman <- htmp_type == "Spearman correlation"
+                union_tab <- env$modules_union_cells()
+
+                if (!is_spearman) {
+                    htmp_matrix <- env$modules_table_cells()
+                    hclust_dend <- hclust_dends_ncell()
+                } else {
+                    htmp_matrix <- env$modules_table_spearman()
+                    hclust_dend <- hclust_dends_spearman()
+                }
+
+                col_scheme <- input$colour_scheme
+                axis_size <- input$axis_size
+                text_size <- input$text_size
+                legend_size <- input$legend_size
+                clipping_val <- input$colour_clipping
+                dend_height <- input$dend_height
+
+                shiny::isolate({
+                    shiny::req(htmp_matrix, !is.null(htmp_matrix), nrow(htmp_matrix) > 1, hclust_dend, union_tab)
+                    shiny::req(mod_ord, all(mod_ord %in% rownames(htmp_matrix)))
+                    htmp_matrix <- htmp_matrix[mod_ord, mod_ord, drop = FALSE]
+
+                    col_scheme <- env$color_options$continuous[[col_scheme]]
+                    if (!is_spearman) {
+                        htmp_matrix[htmp_matrix > clipping_val] <- clipping_val
+                    } else {
+                        col_scheme <- circlize::colorRamp2(seq(from = -1, to = 1, length.out = length(col_scheme)), col_scheme) 
+                    }
+                    gc()
+
+                    if (htmp_type == "Expressed cells (JSI)") {
+                        union_tab <- union_tab[mod_ord, mod_ord, drop = FALSE]
+                        for (i in seq_len(nrow(htmp_matrix))) {
+                            union_tab[i, i] <- htmp_matrix[i, i]
+                        }
+                        htmp_matrix <- round(htmp_matrix / union_tab, 2)
+                        for (i in seq_len(nrow(htmp_matrix))) {
+                            htmp_matrix[i, i] <- NA
+                        }
+                    }
+
+                    if (min(htmp_matrix, na.rm = TRUE) == max(htmp_matrix, na.rm = TRUE)) {
+                        col_scheme <- "gray"
+                        print("??")
+                    }
+
+                    ComplexHeatmap::Heatmap(
+                        matrix = htmp_matrix,
+                        name = htmp_type,
+                        col = col_scheme,
+                        cluster_rows = hclust_dend,
+                        row_dend_width = grid::unit(dend_height, "mm"),
+                        cluster_columns = hclust_dend,
+                        show_row_dend = TRUE,
+                        show_column_dend = FALSE,
+                        row_names_side = "left",
+                        column_names_side = "top",
+                        row_names_gp = grid::gpar(fontsize = axis_size),
+                        column_names_gp = grid::gpar(fontsize = axis_size),
+                        column_title_gp = grid::gpar(fontsize = axis_size),
+                        row_title_gp = grid::gpar(fontsize = axis_size),
+                        heatmap_legend_param = list(
+                            title_gp = grid::gpar(fontsize = legend_size),
+                            labels_gp = grid::gpar(fontsize = legend_size),
+                            legend_height = grid::unit(legend_size * 2, "mm")
+                        ),
+                        width = ncol(htmp_matrix) * (text_size / 2 + 2),
+                        height = nrow(htmp_matrix) * (text_size / 2 + 2),
+                        cell_fun = function(j, i, x, y, width, height, fill) {
+                            if (text_size > 0.1 && !is.na(htmp_matrix[i, j])) {
+                                grid::grid.text(htmp_matrix[i, j], x = x, y = y, gp = grid::gpar(fontsize = text_size * 0.8))
+                            }
+                        },
+                        na_col = "lightgrey"
+                    )
+                })
+            })
+
+            shiny::observe({
+                htmp_obj <- heatmap_obj()
+
+                output$modules_heatmap <- shiny::renderPlot(
+                    height = env$window_dim()[2] / 1.05,
+                    width = env$window_dim()[1] / 1.05,
+                    {
+                        shiny::req(htmp_obj)
+                        ComplexHeatmap::draw(htmp_obj, heatmap_legend_side = "right", annotation_legend_side = "right")
+                    }
+                )
+
+                output$download_heatmap <- shiny::downloadHandler(
+                    filename = function() {
+                        paste(input$filename_heatmap, tolower(input$filetype_heatmap), sep = ".")
+                    },
+                    content = function(file) {
+                        shiny::req(htmp_obj)
+                        save_filetypes[[input$filetype_heatmap]](file, width = input$width_heatmap, height = input$height_heatmap)
+                        ComplexHeatmap::draw(htmp_obj)
+                        grDevices::dev.off()
+                    }
+                        
+                )
+
+            })
+            
+        }
+    )
+}
 #' Server - Gene Module UMAP
 #'
 #' @description Creates the backend interface for the Gene Module UMAP panel
@@ -577,19 +862,50 @@ server_module_umap <- function(id) {
             server_module_table("gene_modules_table")
 
             shiny::observe({
+                modules_stats <- env$modules_stats_summary()
                 shiny::isolate({
-                    modules_stats <- env$modules_stats_summary()
                     shiny::req(modules_stats, nrow(modules_stats) > 0)
                     shiny::updateSelectizeInput(
                         session,
                         inputId = "select_modules",
                         choices = modules_stats$module,
-                        selected = modules_stats$module[!modules_stats$is_outlier],
+                        selected = modules_stats$module[modules_stats$is_outlier == "no"],
                         server = TRUE
                     )
-                    print("Changed trigger to TRUE")
                 })
             }) %>% shiny::bindEvent(env$modules_stats_summary())
+
+            output$clip <- shiny::renderUI({
+                rclipboard::rclipButton(
+                    inputId = "clipbtn",
+                    label = "Copy to clipboard",
+                    clipText = paste(input$select_modules, collapse = ","),
+                    icon = shiny::icon("clipboard"),
+                    class = "btn btn-primary",
+                    options = list(delay = list(show = 800, hide = 100), trigger = "hover")
+                )
+            })
+
+            shiny::observe({
+                modules_stats <- env$modules_stats_summary()
+                shiny::updateSelectizeInput(
+                    session,
+                    inputId = "select_modules",
+                    selected = modules_stats$module[modules_stats$is_outlier == "no"]
+                )
+            }) %>% shiny::bindEvent(input$reset_modules)
+
+            shiny::observe({
+                modules_stats <- env$modules_stats_summary()
+                slct_modules <- input$select_modules
+                shiny::req(slct_modules)
+                shiny::updateSelectizeInput(
+                    session,
+                    inputId = "select_modules",
+                    selected = intersect(modules_stats$module, slct_modules)
+                )
+
+            }) %>% shiny::bindEvent(input$order_modules)
 
             module_ordering <- shiny::reactive({
                 input$select_modules
@@ -599,6 +915,7 @@ server_module_umap <- function(id) {
 
             server_module_pseudotime_expression("gene_modules_pseudotime", module_ordering)
             server_grid_umaps("gene_modules_umap", module_ordering)
+            server_module_heatmap("gene_modules_heatmap", module_ordering)
         }
     )
 }
