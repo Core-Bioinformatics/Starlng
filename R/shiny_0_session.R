@@ -72,7 +72,8 @@ ui_global_setttings <- function() {
                 resizeId = setTimeout(transferWindowSize, 500);
             });
         '))),
-        shiny::div(class = "custom-empty")
+        shiny::div(class = "custom-empty"),
+        rclipboard::rclipboardSetup()
     )
 }
 
@@ -161,6 +162,9 @@ prepare_session <- function(parent_session, reactive_dim, height_ratio = 0.7, en
     assign("modules_mask", shiny::reactiveVal(NULL), envir = env)
     assign("modules_stats", shiny::reactiveVal(NULL), envir = env)
     assign("modules_stats_summary", shiny::reactiveVal(NULL), envir = env)
+    assign("modules_table_cells", shiny::reactiveVal(NULL), envir = env)
+    assign("modules_table_spearman", shiny::reactiveVal(NULL), envir = env)
+    assign("modules_union_cells", shiny::reactiveVal(NULL), envir = env)
     assign("trigger4", shiny::reactiveVal(FALSE), envir = env)
 
     shiny::observe({
