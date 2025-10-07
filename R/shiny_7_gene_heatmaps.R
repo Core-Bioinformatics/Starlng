@@ -24,7 +24,7 @@ ui_pseudobulk_heatmap <- function(id) {
     shiny::tagList(
         shiny::h3("Pseudobulk heatmap"),
         shiny::splitLayout(
-            cellWidths = "40px",
+            cellWidths = c("40px", "40px", "300px"),
             shinyWidgets::dropdownButton(
                 inputId = ns("heatmap_settings"),
                 shiny::tagList(
@@ -51,6 +51,11 @@ ui_pseudobulk_heatmap <- function(id) {
                         min = 0.00, max = 30.00, value = 12, step = 0.05
                     ),
                     shiny::sliderInput(
+                        inputId = ns("point_size"),
+                        label = "Point size",
+                        min = 0.10, max = 30, value = c(0.5, 10), step = 0.01
+                    ),
+                    shiny::sliderInput(
                         inputId = ns("axis_size"),
                         label = "Axis labels size",
                         min = 0.00, max = 30.00, value = 12, step = 0.05
@@ -73,7 +78,13 @@ ui_pseudobulk_heatmap <- function(id) {
                 size = "sm",
                 circle = TRUE
             ),
-            gear_download(ns, "heatmap", "heatmap")
+            gear_download(ns, "heatmap", "heatmap"),
+            shinyWidgets::radioGroupButtons(
+                inputId = ns("plot_type"),
+                label = "Select plot type",
+                choices = c("heatmap", "dotplot"),
+                selected = "dotplot"
+            )
         ),
         shiny::plotOutput(ns("pseudobulk_heatmap"), height = "auto")
     )
@@ -190,17 +201,29 @@ ui_module_metadata_heatmap <- function(id) {
                     selected = NULL,
                     multiple = TRUE,
                     options = list(
-                        plugins = list("remove_button", "drag_drop")
+                        plugins = list("remove_button", "drag_drop"),
+                        delimiter = ",",
+                        create = TRUE
                     )
                 )
             ),
             shiny::column(1,
                 shiny::actionButton(
-                    inputId = ns("reset_order"),
-                    label = "Reset order!",
+                    inputId = ns("order_modules"),
+                    label = "Order modules!",
+                    icon = shiny::icon("sort-numeric-up")
+                )
+            ),
+            shiny::column(1,
+                shiny::actionButton(
+                    inputId = ns("reset_modules"),
+                    label = "Reset modules!",
                     icon = shiny::icon("undo")
                 )
             ),
+            shiny::column(1,
+                shiny::uiOutput(ns("clip"))
+            )
         ),
         ui_by_cell_heatmap(ns("by_cell"))
     )
@@ -229,20 +252,24 @@ server_pseudotime_table <- function(id) {
                     for (dscr_mtd in names(env$discrete_mtd)) {
                         if (are_na) {
                             mtd_grps <- split(psd_val, env$mtd_df[na_mask, dscr_mtd])
-                            next
+                            # next
+                        } else {
+                            mtd_grps <- split(psd_val, env$mtd_df[, dscr_mtd])
                         }
-                        mtd_grps <- split(psd_val, env$mtd_df[, dscr_mtd])
-                        
+
                         if (length(mtd_grps) == 0) {
                             next
                         }
                 
                         psd_ordering[[dscr_mtd]] <- list()
                         psd_ordering[[dscr_mtd]]$stats <- lapply(mtd_grps, function(x) {
-                            qs_vec <- quantile(x, probs = c(0.05, 0.25, 0.5, 0.75, 0.95))
+                            if (length(x) == 0) {
+                                return(NULL)
+                            }
+                            qs_vec <- stats::quantile(x, probs = c(0.05, 0.25, 0.5, 0.75, 0.95))
                             return(c(qs_vec, mean(x), qs_vec[4] - qs_vec[2]))
                         })
-                        names(psd_ordering[[dscr_mtd]]$stats) <- names(mtd_grps)
+                        # names(psd_ordering[[dscr_mtd]]$stats) <- names(mtd_grps)
                         psd_ordering[[dscr_mtd]]$stats <- as.data.frame(do.call(rbind, psd_ordering[[dscr_mtd]]$stats))
                         colnames(psd_ordering[[dscr_mtd]]$stats) <- c("q05", "Q1", "median", "Q3", "q95", "mean", "IQR")
 
@@ -250,7 +277,7 @@ server_pseudotime_table <- function(id) {
 
                         psd_ordering[[dscr_mtd]]$coverage <- calculate_pseudotime_iqr_coverage(psd_ordering[[dscr_mtd]]$stats) / (max_psd - min_psd) * 100
 
-                        psd_ordering[[dscr_mtd]]$iqr_stats <- fivenum(psd_ordering[[dscr_mtd]]$stats[, "IQR"])
+                        psd_ordering[[dscr_mtd]]$iqr_stats <- stats::fivenum(psd_ordering[[dscr_mtd]]$stats[, "IQR"])
                     }
 
                     env$psd_ordering(psd_ordering)
@@ -268,7 +295,11 @@ server_pseudotime_table <- function(id) {
                     names(group_stats_df) <- names(psd_order)
                     group_stats_df <- as.data.frame(do.call(rbind, group_stats_df))
                     colnames(group_stats_df) <- c("Coverage", "min IQR", "Q1 IQR", "median IQR", "Q3 IQR", "max IQR")
-                    group_stats_df <- group_stats_df[order(group_stats_df$"median IQR"), ]
+                    q_coverage <- max(group_stats_df$Coverage) * 0.85
+                    group_stats_df <- rbind(
+                        group_stats_df %>% dplyr::filter(.data$Coverage > q_coverage) %>% dplyr::arrange(.data$"median IQR"),
+                        group_stats_df %>% dplyr::filter(.data$Coverage <= q_coverage) %>% dplyr::arrange(dplyr::desc(.data$Coverage))
+                    )
 
                     output$mtd_psd_table <- DT::renderDataTable(
                         {
@@ -406,18 +437,55 @@ server_pseudobulk_heatmap <- function(id, metadata_name, module_ordering) {
                 })
             })
 
+            percentages_mat <- shiny::reactive({
+                ptype <- input$plot_type
+                current_modules <- module_ordering()
+                mtd_name <- metadata_name()
+                summarise_expr <- input$summarise_expr
+                psd_ordering <- env$psd_ordering()
+                shiny::isolate({
+                    shiny::req(ptype == "dotplot")
+                    shiny::req(mtd_name, summarise_expr)
+                    shiny::req(mtd_name %in% colnames(env$mtd_df))
+                    shiny::req(psd_ordering, current_modules)
+
+                    mod_mask <- env$modules_mask()
+
+                    index_mtd <- split(seq_len(nrow(env$mtd_df)), env$mtd_df[, mtd_name])
+                    mtd_ordering <- rownames(psd_ordering[[mtd_name]]$stats)
+                    # percentages <- matrix(0, nrow = length(index_mtd), ncol = length(current_modules))
+                    percentages <- matrix(0, nrow = length(mtd_ordering), ncol = length(current_modules))
+                    colnames(percentages) <- paste0("module ", current_modules)
+
+                    rownames(percentages) <- mtd_ordering
+
+                    for (i in mtd_ordering) { #names(index_mtd)) {
+                        ncells <- length(index_mtd[[i]])
+                        for (j in current_modules) {
+                            ncom <- sum(mod_mask[j, index_mtd[[i]]])
+                            percentages[i, paste0("module ", j)] <- ncom / ncells
+                        }
+                    }
+
+                    return(percentages)
+                })
+            })
+
             htmp_obj <- shiny::reactive({
+                ptype <- input$plot_type
                 pseudobulk_matrix <- psdbulk_matrix()
                 module_ord <- module_ordering()
                 req_gear_heatmap(session)
 
                 shiny::isolate({
+                    shiny::req(ptype == "heatmap")
                     shiny::req(!is.null(pseudobulk_matrix), module_ord)
+                    shiny::req(all(paste("module", module_ord) %in% colnames(pseudobulk_matrix)))
                     module_ord <- paste0("module ", module_ord)
                     pseudobulk_matrix <- pseudobulk_matrix[, module_ord, drop = FALSE]
                     gc()
 
-                    if (input$scale_values) {
+                    if (input$scale_values && ncol(pseudobulk_matrix) > 1) {
                         pseudobulk_matrix <- t(scale(t(pseudobulk_matrix)))
                         pseudobulk_matrix[pseudobulk_matrix > input$cap_value] <- input$cap_value
                         pseudobulk_matrix[pseudobulk_matrix < -input$cap_value] <- -input$cap_value
@@ -457,31 +525,96 @@ server_pseudobulk_heatmap <- function(id, metadata_name, module_ordering) {
                 })
             })
 
+            dotplot <- shiny::reactive({
+                ptype <- input$plot_type
+                pseudobulk_matrix <- psdbulk_matrix()
+                perc <- percentages_mat()
+                module_ord <- module_ordering()
+                req_gear_heatmap(session)
+
+                shiny::isolate({
+                    shiny::req(ptype == "dotplot")
+                    shiny::req(!is.null(pseudobulk_matrix), module_ord)
+                    shiny::req(!is.null(perc))
+                    shiny::req(all(paste("module", module_ord) %in% colnames(pseudobulk_matrix)))
+                    shiny::req(all(paste("module", module_ord) %in% colnames(perc)))
+                    module_ord <- paste0("module ", module_ord)
+                    pseudobulk_matrix <- pseudobulk_matrix[, module_ord, drop = FALSE]
+                    gc()
+
+                    if (input$scale_values && ncol(pseudobulk_matrix) > 1) {
+                        pseudobulk_matrix <- t(scale(t(pseudobulk_matrix)))
+                        pseudobulk_matrix[pseudobulk_matrix > input$cap_value] <- input$cap_value
+                        pseudobulk_matrix[pseudobulk_matrix < -input$cap_value] <- -input$cap_value
+                    } else {
+                        pseudobulk_matrix[pseudobulk_matrix > input$cap_value] <- input$cap_value
+                    }
+
+                    perc <- perc[rownames(pseudobulk_matrix), colnames(pseudobulk_matrix), drop = FALSE]
+
+                    colnames(pseudobulk_matrix) <- gsub("module ", "", colnames(pseudobulk_matrix))
+
+                    df <- reshape2::melt(pseudobulk_matrix)
+                    colnames(df) <- c("metadata", "module", "expression")
+                    df$perc <- reshape2::melt(perc)$value
+                    df$metadata <- factor(df$metadata, levels = rev(rownames(pseudobulk_matrix)))
+
+                    df$module <- factor(df$module, levels = colnames(pseudobulk_matrix))
+
+                    ggplot2::ggplot(df, ggplot2::aes(x = .data$module, y = .data$metadata, size = .data$perc, colour = .data$expression)) +
+                        ggplot2::geom_point() +
+                        ggplot2::scale_colour_gradientn(
+                            colours = env$color_options$continuous[[input$colour_scheme]]
+                        ) +
+                        ggplot2::scale_size(range = input$point_size) +
+                        ggplot2::theme_classic() +
+                        ggplot2::theme(
+                            axis.text = ggplot2::element_text(size = input$axis_size),
+                            axis.title = ggplot2::element_text(size = input$axis_size),
+                            legend.text = ggplot2::element_text(size = input$legend_size),
+                            legend.title = ggplot2::element_text(size = input$legend_size)
+                        )
+                })
+
+            })
+
             shiny::observe({
-                plot_htmp <- htmp_obj()
+                plot_type <- input$plot_type
+                if (plot_type == "heatmap") {
+                    plot_htmp <- htmp_obj()
+                } else {
+                    plot_htmp <- dotplot()
+                }
                 wdim <- env$window_dim()
 
                 shiny::isolate({
                     shiny::req(!is.null(plot_htmp), wdim, cancelOutput = TRUE)
+                    psd_mat <- psdbulk_matrix()
                     plt_height <- min(
-                        wdim[2],
-                        200 + 35 * nrow(plot_htmp)
+                        wdim[2] * 0.9,
+                        200 + 35 * nrow(psd_mat)
                     )
                     plt_width <- min(
-                        wdim[1],
-                        300 + 70 * ncol(plot_htmp)
+                        wdim[1] * 0.9,
+                        300 + 70 * ncol(psd_mat)
                     )
 
                     output$pseudobulk_heatmap <- shiny::renderPlot(
                         height = plt_height,
                         width = plt_width,
-                        ComplexHeatmap::draw(plot_htmp)
+                        # ifelse(plot_type == "heatmap", ComplexHeatmap::draw(plot_htmp), plot_htmp)
+                        plot_htmp
                     )
                 })
             })
 
             shiny::observe({
-                plot_htmp <- htmp_obj()
+                plot_type <- input$plot_type
+                if (plot_type == "heatmap") {
+                    plot_htmp <- htmp_obj()
+                } else {
+                    plot_htmp <- dotplot()
+                }
                 shiny::req(plot_htmp)
                 req_gear_download(session, "heatmap")
 
@@ -491,7 +624,11 @@ server_pseudobulk_heatmap <- function(id, metadata_name, module_ordering) {
                     },
                     content = function(file) {
                         save_filetypes[[input$filetype_heatmap]](file, width = input$width_heatmap, height = input$height_heatmap)
-                        ComplexHeatmap::draw(plot_htmp)
+                        if (plot_type == "heatmap") {
+                            ComplexHeatmap::draw(plot_htmp)
+                        } else {
+                            print(plot_htmp)
+                        }
                         grDevices::dev.off()
                     }
                 )
@@ -573,18 +710,9 @@ server_by_cell_heatmap <- function(id, metadata_name, module_ordering) {
 
             shiny::observe({
                 htmp_obj_curr <- htmp_obj()
-                wdim <- env$window_dim()
 
                 shiny::isolate({
-                    shiny::req(!is.null(htmp_obj_curr), wdim, cancelOutput = TRUE)
-                    plt_height <- min(
-                        wdim[2] / 1.1,
-                        200 + 25 * nrow(htmp_obj_curr)
-                    )
-                    plt_width <- min(
-                        wdim[1] / 1.1,
-                        300 + 70 * ncol(htmp_obj_curr)
-                    )
+                    shiny::req(!is.null(htmp_obj_curr), cancelOutput = TRUE)
                     output$by_cell_heatmap <- shiny::renderPlot(
                         {
                             ComplexHeatmap::draw(
@@ -599,7 +727,8 @@ server_by_cell_heatmap <- function(id, metadata_name, module_ordering) {
             })
 
             shiny::observe({
-                shiny::req(!is.null(htmp_obj()))
+                h_obj <- htmp_obj()
+                shiny::req(!is.null(h_obj))
                 req_gear_download(session, "heatmap")
 
                 output$download_heatmap <- shiny::downloadHandler(
@@ -607,8 +736,9 @@ server_by_cell_heatmap <- function(id, metadata_name, module_ordering) {
                         paste(input$filename_heatmap, tolower(input$filetype_heatmap), sep = ".")
                     },
                     content = function(file) {
+                        shiny::req(!is.null(h_obj), cancelOutput = TRUE)
                         save_filetypes[[input$filetype_heatmap]](file, width = input$width_heatmap, height = input$height_heatmap)
-                        ComplexHeatmap::draw(htmp_obj(), merge_legend = TRUE)
+                        ComplexHeatmap::draw(h_obj, merge_legend = TRUE)
                         grDevices::dev.off()
                         gc()
                     }
@@ -652,7 +782,11 @@ server_module_metadata_heatmap <- function(id) {
                     names(group_stats_df) <- names(psd_order)
                     group_stats_df <- as.data.frame(do.call(rbind, group_stats_df))
                     colnames(group_stats_df) <- c("Coverage", "min IQR", "Q1 IQR", "median IQR", "Q3 IQR", "max IQR")
-                    group_stats_df <- group_stats_df[order(group_stats_df$"median IQR"), ]
+                    q_coverage <- max(group_stats_df$Coverage) * 0.85
+                    group_stats_df <- rbind(
+                        group_stats_df %>% dplyr::filter(.data$Coverage > q_coverage) %>% dplyr::arrange(.data$"median IQR"),
+                        group_stats_df %>% dplyr::filter(.data$Coverage <= q_coverage) %>% dplyr::arrange(dplyr::desc(.data$Coverage))
+                    )
                     best_option <- rownames(group_stats_df)[1]
                     shiny::updateSelectInput(
                         session,
@@ -672,10 +806,43 @@ server_module_metadata_heatmap <- function(id) {
                         session,
                         inputId = "module_order",
                         choices = rownames(mod_summ),
-                        selected = rownames(mod_summ)[!mod_summ$is_outlier]
+                        selected = rownames(mod_summ)[mod_summ$is_outlier == "no"],
+                        server = TRUE
                     )
                 })
             })
+
+            output$clip <- shiny::renderUI({
+                rclipboard::rclipButton(
+                    inputId = "clipbtn",
+                    label = "Copy to clipboard",
+                    clipText = paste(input$module_order, collapse = ","),
+                    icon = shiny::icon("clipboard"),
+                    class = "btn btn-primary",
+                    options = list(delay = list(show = 800, hide = 100), trigger = "hover")
+                )
+            })
+
+            shiny::observe({
+                modules_stats <- env$modules_stats_summary()
+                shiny::updateSelectizeInput(
+                    session,
+                    inputId = "module_order",
+                    selected = modules_stats$module[modules_stats$is_outlier == "no"]
+                )
+            }) %>% shiny::bindEvent(input$reset_modules)
+
+            shiny::observe({
+                modules_stats <- env$modules_stats_summary()
+                slct_modules <- input$module_order
+                shiny::req(slct_modules)
+                shiny::updateSelectizeInput(
+                    session,
+                    inputId = "module_order",
+                    selected = intersect(modules_stats$module, slct_modules)
+                )
+
+            }) %>% shiny::bindEvent(input$order_modules)
 
             module_ordering <- shiny::reactive({
                 input$module_order
@@ -687,7 +854,7 @@ server_module_metadata_heatmap <- function(id) {
                     session,
                     inputId = "module_order",
                     choices = rownames(mod_summ),
-                    selected = rownames(mod_summ)[!mod_summ$is_outlier]
+                    selected = rownames(mod_summ)[mod_summ$is_outlier == "no"]
                 )
             }) %>% shiny::bindEvent(input$reset_order)
 
@@ -699,16 +866,16 @@ server_module_metadata_heatmap <- function(id) {
             server_by_cell_heatmap("by_cell", metadata_name, module_ordering)
 
             shiny::observe({
-                print(paste("Size of umap_df", format(object.size(env$umap_df), units = "Mb")))
-                print(paste("Size of mtd_df", format(object.size(env$mtd_df), units = "Mb")))
-                print(paste("Size of discrete_mtd", format(object.size(env$discrete_mtd), units = "Mb")))
-                print(paste("Size of mon_obj", format(object.size(env$mon_obj), units = "Mb")))
-                print(paste("Size of trajectory_gplot", format(object.size(env$trajectory_gplot), units = "Mb")))
-                print(paste("Size of moran_df", format(object.size(env$moran_df), units = "Mb")))
-                print(paste("Size of modules_summaries", format(object.size(env$modules_summaries()), units = "Mb")))
-                print(paste("Size of modules_mask", format(object.size(env$modules_mask()), units = "Mb")))
-                print(paste("Size of modules_stats", format(object.size(env$modules_stats()), units = "Mb")))
-                print(paste("Size of psd_value", format(object.size(env$psd_value()), units = "Mb")))
+                print(paste("Size of umap_df", format(utils::object.size(env$umap_df), units = "Mb")))
+                print(paste("Size of mtd_df", format(utils::object.size(env$mtd_df), units = "Mb")))
+                print(paste("Size of discrete_mtd", format(utils::object.size(env$discrete_mtd), units = "Mb")))
+                print(paste("Size of mon_obj", format(utils::object.size(env$mon_obj), units = "Mb")))
+                print(paste("Size of trajectory_gplot", format(utils::object.size(env$trajectory_gplot), units = "Mb")))
+                print(paste("Size of moran_df", format(utils::object.size(env$moran_df), units = "Mb")))
+                print(paste("Size of modules_summaries", format(utils::object.size(env$modules_summaries()), units = "Mb")))
+                print(paste("Size of modules_mask", format(utils::object.size(env$modules_mask()), units = "Mb")))
+                print(paste("Size of modules_stats", format(utils::object.size(env$modules_stats()), units = "Mb")))
+                print(paste("Size of psd_value", format(utils::object.size(env$psd_value()), units = "Mb")))
             }) %>% shiny::bindEvent(input$size_env)
         }
     )
