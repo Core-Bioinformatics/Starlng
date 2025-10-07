@@ -4,7 +4,7 @@
 \alias{get_clusters_consistency}
 \title{Get the by-cluster consistency of configurations}
 \usage{
-get_clusters_consistency(by_cluster_list, order_logic = "agreement")
+get_clusters_consistency(by_cluster_list, order_logic = "avg_agreement")
 }
 \arguments{
 \item{by_cluster_list}{A nested list of partitions that are grouped by

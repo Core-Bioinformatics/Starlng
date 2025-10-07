@@ -25,6 +25,7 @@ starlng_write_app_clustassess_app(
     ModularityVertexPartition = NULL), number_iterations = 5, number_repetitions = 100),
   ecc_threshold = 0.9,
   freq_threshold = 30,
+  enrichment_organism = "hsapiens",
   save_entire_monocle = TRUE,
   discrete_colours = list(),
   continuous_colours = list(),
@@ -36,7 +37,7 @@ starlng_write_app_clustassess_app(
 )
 }
 \arguments{
-\item{folder_path}{Check \code{starlng_write_app_monocle} documentation.}
+\item{folder_path}{Check \code{starlng_write_app_monocle()} documentation.}
 
 \item{ca_app_folder}{The path of the folder containing the files associated
 with the ClustAssess Shiny app.}
@@ -58,33 +59,35 @@ are obtained. Defaults to NULL.}
 If FALSE, uses only the stable feature set as determined by ClustAssess.
 Defaults to TRUE.}
 
-\item{app_title_name}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{app_title_name}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{learn_graph_parameters}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{learn_graph_parameters}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{gene_filtering_function}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{gene_filtering_function}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{clustering_parameters}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{clustering_parameters}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{ecc_threshold}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{ecc_threshold}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{freq_threshold}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{freq_threshold}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{save_entire_monocle}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{enrichment_organism}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{discrete_colours}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{save_entire_monocle}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{continuous_colours}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{discrete_colours}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{max_n_colors}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{continuous_colours}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{verbose}{Check \code{starlng_write_app_monocle} documentation.}
+\item{max_n_colors}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{compression_level}{Check \code{starlng_write_app_monocle} documentation.`}
+\item{verbose}{Check \code{starlng_write_app_monocle()} documentation.}
 
-\item{chunk_size}{Check \code{starlng_write_app_monocle} documentation.}
+\item{compression_level}{Check \code{starlng_write_app_monocle()} documentation.`}
 
-\item{nthreads}{Check \code{starlng_write_app_monocle} documentation.}
+\item{chunk_size}{Check \code{starlng_write_app_monocle()} documentation.}
+
+\item{nthreads}{Check \code{starlng_write_app_monocle()} documentation.}
 }
 \description{
 Runs the entire Starlng pipeline on a normalized gene expression
@@ -93,6 +96,6 @@ and generates a folder with all necessary files to run a Shiny app.
 }
 \note{
 For more details about the other parameters and the content of the
-shiny folder, consult the documentation of the \code{starlng_write_app_monocle}
+shiny folder, consult the documentation of the \code{starlng_write_app_monocle()}
 function.
 }

@@ -20,6 +20,7 @@ starlng_write_app_monocle(
     ModularityVertexPartition = NULL), number_iterations = 5, number_repetitions = 100),
   ecc_threshold = 0.9,
   freq_threshold = 30,
+  enrichment_organism = "hsapiens",
   save_entire_monocle = TRUE,
   discrete_colours = list(),
   continuous_colours = list(),
@@ -77,9 +78,12 @@ it is set to 0.9.}
 of clusters is obtained after running the \code{clustering_pipeline} function. By
 default, it is set to 30.}
 
+\item{enrichment_organism}{The organism used for the enrichment analysis.}
+
 \item{save_entire_monocle}{If TRUE, saves the monocle object in the app
 folder. This object could be used to perform additional changes to the app
-or to continue the downstream analysis.}
+or to continue the downstream analysis. If memory is a concern, set this
+parameter to FALSE. Defaults to TRUE.}
 
 \item{discrete_colours}{A list of colours that will be used to colour the
 groups from the discrete metadata. The list should consist in an
@@ -118,14 +122,14 @@ contains all necessary files to run the Starlng Shiny app.
 \itemize{
 \item \code{app.R} - the main file of the Shiny app.
 \item \code{objects} - a folder that contains the following files:
-\item \code{monocle_object.qs} - the monocle object that was used to generate the app.
-\item \code{recommended_pseudotime.qs} - the recommended pseudotime values.
+\item \code{monocle_object.qs2} - the monocle object that was used to generate the app.
+\item \code{recommended_pseudotime.qs2} - the recommended pseudotime values.
 \item \code{genes_info.csv} - a table with the gene information.
-\item \code{trajectory_ggplot.qs} - the ggplot object of the trajectory.
-\item \code{metadata.qs} - the metadata object.
-\item \code{diet_monocle_object.qs} - the monocle object with the diet information.
+\item \code{trajectory_ggplot.qs2} - the ggplot object of the trajectory.
+\item \code{metadata.qs2} - the metadata object.
+\item \code{diet_monocle_object.qs2} - the monocle object with the diet information.
 \item \code{expression.h5} - the expression matrix in the HDF5 format.
-\item \code{colours.qs} - the colours object.
+\item \code{colours.qs2} - the colours object.
 }
 }
 \description{

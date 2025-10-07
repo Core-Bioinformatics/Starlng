@@ -14,7 +14,7 @@ clustering_pipeline(
   number_iterations = 5,
   seeds = NULL,
   number_repetitions = 100,
-  merge_identical_partitions = FALSE,
+  merge_identical_partitions = TRUE,
   memory_log_file = NULL
 )
 }
@@ -52,7 +52,7 @@ pipeline should run. Defaults to 100.}
 
 \item{merge_identical_partitions}{Logical indicating if the function should
 merge the partitions that are identical and group them by the number of
-clusters. Defaults to FALSE.}
+clusters. Defaults to TRUE.}
 
 \item{memory_log_file}{The path to the file where the memory usage of the
 function should be logged. Defaults to NULL.}
