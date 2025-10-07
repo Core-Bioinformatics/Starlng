@@ -53,8 +53,12 @@ read_gene_from_dense_h5 <- function(gene_names,
     return(gene_matrix)
 }
 
-read_gene_from_sparse_h5 <- function() {
-
+read_gene_from_sparse_h5 <- function(gene_names,
+                                     index_genes,
+                                     sparse_mat) {
+    temp_mat <- sparse_mat[index_genes, , drop = FALSE]
+    rownames(temp_mat) <- gene_names
+    return(temp_mat)
 }
 
 #' Write expression matrix to a dense HDF5 file
@@ -148,5 +152,50 @@ write_gene_matrix_dense_h5 <- function(expression_matrix,
             index = list(start:end, NULL)
         )
     }
+    rhdf5::h5closeAll()
+}
+
+#' Write expression matrix to a sparse HDF5 file
+#' 
+#' @description This function writes a expression matrix to a HDF5 file in a
+#' sparse CSC format. The created file will contain three fields:
+#' - genes: the names of the genes in the matrix.
+#' - cells: the names of the cells in the matrix.
+#' - expression_matrix: the expression matrix stored in CSC format.
+#' 
+#' @param expression_matrix The expression matrix to be written. The matrix
+#' should have defined rownames and colnames. If they are not defined, they
+#' will be generated as `gene_{index}` and `cell_{index}` respectively.
+#' @param file_path The path to the HDF5 file where the matrix will be stored.
+#' @param compression_level The compression level to be used. Defaults to 7.
+#' 
+#' @return The function does not return anything. It will create the HDF5 file
+#' with the matrix stored in it.
+#' @export
+write_gene_matrix_sparse_h5 <- function(expression_matrix,
+                                        file_path,
+                                        compression_level = 7) {
+
+    if (!inherits(expression_matrix, "dgCMatrix")) {
+        expression_matrix <- methods::as(expression_matrix, "dgCMatrix")
+        gc()
+    }
+
+    HDF5Array::writeTENxMatrix(
+        x = expression_matrix,
+        filepath = file_path,
+        group = "expression_matrix",
+        level = compression_level
+    )
+    gc()
+
+    if (is.null(rownames(expression_matrix))) {
+        rownames(expression_matrix) <- paste0("gene_", seq_len(nrow(expression_matrix)))
+    }
+    if (is.null(colnames(expression_matrix))) {
+        colnames(expression_matrix) <- paste0("cell_", seq_len(ncol(expression_matrix)))
+    }
+    rhdf5::h5write(rownames(expression_matrix), file_path, "genes")
+    rhdf5::h5write(colnames(expression_matrix), file_path, "cells")
     rhdf5::h5closeAll()
 }

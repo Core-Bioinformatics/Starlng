@@ -30,6 +30,7 @@ parallel_nn2_idx <- function(embedding, k) {
     }
 
     shared_emb <- SharedObject::share(embedding)
+    i <- NULL
 
     # HACK check if there is another way to not get the `already exported variable` warning
     nn_result <- suppressWarnings(foreach::foreach (
@@ -195,6 +196,7 @@ community_detection_master <- function(adj_object,
     quality_functions <- quality_functions[!is_empty]
     resolutions <- resolutions[!is_empty]
 
+    index <- NULL
     workers_indices <- get_workers_res_index(resolutions, length(seeds))
 
     used_functions <- c("community_detection_worker")
