@@ -12,12 +12,19 @@ prepare_session(
 )
 }
 \arguments{
+\item{parent_session}{An object linking to the Shiny session of the parent
+container.}
+
 \item{reactive_dim}{A reactive variable that returns the dimensions of the
 browser window. This reactive variable is used to update the dimensions of
 the plots inside the Shiny app.}
 
 \item{height_ratio}{Variable indicating the ratio between the height of the
 plots and the height of the browser window.}
+
+\item{enrichment_organism}{The organism to be used for the gene enrichment
+analysis. Defaults to "hsapiens" (human). For the list of supported organisms,
+please consult the \code{gprofiler2} package documentation.}
 }
 \description{
 Creates the backend interface that initializes the variables

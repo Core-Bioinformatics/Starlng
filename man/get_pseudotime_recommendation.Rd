@@ -7,9 +7,8 @@
 get_pseudotime_recommendation(
   monocle_object,
   recommendation_criteria = function(pseudotime_values) {
-     fvn <-
-    stats::fivenum(pseudotime_values)
-     fvn[4] - fvn[2]
+     max(pseudotime_values) -
+    min(pseudotime_values)
  }
 )
 }

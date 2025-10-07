@@ -32,6 +32,7 @@ Imports:
     qualpalr,
     RANN,
     rclipboard,
+    reshape2,
     RhpcBLASctl,
     rhdf5,
     shiny,
