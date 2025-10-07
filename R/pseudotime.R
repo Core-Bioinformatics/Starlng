@@ -258,8 +258,7 @@ custom_pseudotime_ordering <- function(monocle_object,
 #' @export
 get_pseudotime_recommendation <- function(monocle_object,
                                           recommendation_criteria = function(pseudotime_values) {
-                                              fvn <- stats::fivenum(pseudotime_values)
-                                              fvn[4] - fvn[2]
+                                            max(pseudotime_values) - min(pseudotime_values)
                                           }) {
     discrete_groups <- list()
     for (mtd_name in colnames(monocle_object@colData)) {
