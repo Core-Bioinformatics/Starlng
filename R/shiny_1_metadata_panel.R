@@ -43,6 +43,10 @@ ui_metadata_umap <- function(id) {
             cellWidths = c("50%", "50%"),
             ui_metadata_umap_panel(ns("left")),
             ui_metadata_umap_panel(ns("right"))
+        ),
+        shiny::downloadButton(
+            outputId = ns("download_metadata"),
+            label = "Download metadata"
         )
     )
 }
@@ -130,7 +134,6 @@ server_metadata_umap_panel <- function(id) {
                     )
                 })
             })
-
         }
     )
 }
@@ -170,6 +173,15 @@ server_metadata_umap <- function(id) {
             }) # %>% shiny::bindEvent(env$pseudotime_changes())
             server_metadata_umap_panel("left")
             server_metadata_umap_panel("right")
+
+            output$download_metadata <- shiny::downloadHandler(
+                filename = function() {
+                    "metadata.csv"
+                },
+                content = function(file) {
+                    utils::write.csv(env$mtd_df, file, row.names = TRUE)
+                }
+            )
         }
     )
 }
