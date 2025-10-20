@@ -36,6 +36,7 @@ The following packages are required for Starlng:
 * methods
 * monocle3
 * patchwork
+* qs
 * qs2
 * qualpalr
 * RANN
