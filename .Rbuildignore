@@ -5,3 +5,6 @@
 ^paper$
 LICENSE.md
 ^docs$
+^_pkgdown\.yml$
+^pkgdown$
+^\.github$
