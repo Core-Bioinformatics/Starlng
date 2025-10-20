@@ -1,14 +1,14 @@
 Package: Starlng
-Title: What the Package Does (One Line, Title Case)
+Title: STARLNG: STability Analysis of coReguLated Nests of Genes
 Version: 1.0.0
 Authors@R: 
     person("Andi", "Munteanu", , "am3019@cam.ac.uk", role = c("aut", "cre"),
            comment = c(ORCID = "0009-0000-0173-5752"))
-Description: What the package does (one paragraph).
+Description: A set of tools that follows the Monocle3 and ClustAssess frameworks and identifies the stable clustering of autocorrelated genes. Additionally, this package provides a Shiny application to explore the quality of the gene groups, as well as their functional interpretation across the pseudotime trajectory.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Additional_repositories: https://blaserlab.r-universe.dev
 Imports:
     circlize,
@@ -27,7 +27,6 @@ Imports:
     methods,
     monocle3,
     patchwork,
-    qs,
     qs2,
     qualpalr,
     RANN,
