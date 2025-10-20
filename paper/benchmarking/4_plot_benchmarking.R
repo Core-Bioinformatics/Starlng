@@ -37,6 +37,8 @@ time_ncells <- ggplot(mcb_df, aes(x = ncells, y = time)) +
     labs(x = "Number of cells", y = "Time (minutes)") +
     ggtitle("Time taken to write Starlng app for different number of cells") +
     theme(plot.title = element_text(hjust = 0.5))
+ggsave("time_ncells.pdf", time_ncells, width = 8, height = 6)
+print(time_ncells)
 
 ######## Memory across ncells - Pipeline ###########
 first_df <- TRUE
@@ -65,6 +67,8 @@ memory_ncells <- ggplot(memory_df, aes(x = ncells, y = memory)) +
     labs(x = "Number of cells", y = "Memory usage (GB)") +
     ggtitle("Memory usage of Starlng app for different number of cells") +
     theme(plot.title = element_text(hjust = 0.5))
+ggsave("memory_ncells.pdf", memory_ncells, width = 8, height = 6)
+print(memory_ncells)
 
 ####### Time across ncores ########
 first_df <- TRUE
@@ -95,6 +99,7 @@ time_ncores <- ggplot(mcb_df, aes(x = ncores, y = time)) +
     labs(x = "Number of cores", y = "Time (minutes)") +
     ggtitle("Time taken to write Starlng app for different number of cores") +
     theme(plot.title = element_text(hjust = 0.5))
+ggsave("time_ncores.pdf", time_ncores, width = 8, height = 6)
 time_ncores
 
 ####### Memory across ncores ########
@@ -125,6 +130,7 @@ memory_ncores <- ggplot(memory_df, aes(x = ncores, y = memory)) +
     labs(x = "Number of cores", y = "Memory usage (GB)") +
     ggtitle("Memory usage of Starlng app for different number of cores") +
     theme(plot.title = element_text(hjust = 0.5))
+ggsave("memory_ncores.pdf", memory_ncores, width = 8, height = 6)
 memory_ncores
 
 ####### 30-30 vs 30-1 vs 1-1 - Time Memory ######
