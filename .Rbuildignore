@@ -1,0 +1,7 @@
+.gitignore
+^Starlng\.Rproj$
+^\.Rproj\.user$
+^test.*\.R$
+^paper$
+LICENSE.md
+^docs$
