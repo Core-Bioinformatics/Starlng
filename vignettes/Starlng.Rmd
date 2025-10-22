@@ -1,0 +1,83 @@
+---
+title: "Applying Starlng on single-cell data"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Applying Starlng on single-cell data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE,
+    comment = "#>"
+)
+set.seed(1001)
+```
+
+In this vignette we will demonstrate how to apply the main Starlng function to single-cell RNA-seq data. We will exemplify this on the PBMC3k dataset.
+
+```{r libraries}
+library(Starlng)
+library(Seurat)
+library(SeuratData)
+
+print(packageVersion("Starlng"))
+```
+
+We repeated the procedures of downloading, qc filtering, normalising and dimensionality reduction as described in the `ClustAssess` [vignette](https://github.com/Core-Bioinformatics/ClustAssess/blob/main/vignettes/stability-pipeline-description.Rmd).
+
+```{r install_pbmc_rna}
+InstallData("pbmc3k")
+data("pbmc3k")
+pbmc3k <- UpdateSeuratObject(pbmc3k)
+pbmc3k <- PercentageFeatureSet(pbmc3k, pattern = "^MT-", col.name = "percent.mito")
+pbmc3k <- PercentageFeatureSet(pbmc3k, pattern = "^RP[SL][[:digit:]]", col.name = "percent.rp")
+all.index <- seq_len(nrow(pbmc3k))
+MT.index <- grep(pattern = "^MT-", x = rownames(pbmc3k), value = FALSE)
+RP.index <- grep(pattern = "^RP[SL][[:digit:]]", x = rownames(pbmc3k), value = FALSE)
+pbmc3k <- pbmc3k[!((all.index %in% MT.index) | (all.index %in% RP.index)), ]
+pbmc3k <- subset(pbmc3k, nFeature_RNA < 2000 & nCount_RNA < 2500 & percent.mito < 7 & percent.rp > 7)
+pbmc3k <- NormalizeData(pbmc3k, verbose = FALSE)
+pbmc3k <- FindVariableFeatures(pbmc3k, selection.method = "vst", nfeatures = 3000, verbose = FALSE)
+pbmc3k <- ScaleData(pbmc3k, features = rownames(pbmc3k), verbose = FALSE)
+pbmc3k <- RunPCA(pbmc3k,
+    npcs = 30,
+    approx = FALSE,
+    verbose = FALSE
+)
+pbmc3k <- RunUMAP(pbmc3k,
+    reduction = "pca",
+    dims = 1:30,
+    n.neighbors = 30,
+    min.dist = 0.3,
+    metric = "cosine",
+    verbose = FALSE
+)
+pbmc3k
+```
+
+Applying `Starlng` is straightforward, using the `starlng_write_app_default()` function. The function requires a normalised expression matrix, a metadata dataframe, a PCA and UMAP embedding. The function allows controlling the number of points used in inferring the pseudotime trajectory (`learn_graph_parameters`), filtering the genes based on autocorrelation (`gene_filtering_function`) and the parameters used in the stability assessment of gene clustering (`clustering_parameters`).
+
+```{r create_starlng_app, eval = FALSE}
+starlng_write_app_default(
+    folder_path = "starlng_app_pbmc3k",
+    expression_matrix = GetAssayData(pbmc3k, assay = "RNA", slot = "data"),
+    metadata_df = pbmc3k@meta.data,
+    pca_embedding = Embeddings(pbmc3k, reduction = "pca"),
+    umap_embedding = Embeddings(pbmc3k, reduction = "umap"),
+    app_title_name = "Starlng PBMC3K Example"
+)
+```
+
+The function will create a Starlng Shiny application in the specified folder. You can run the application using the following command:
+
+```{r run_app, eval = FALSE}
+shiny::runApp("starlng_app_pbmc3k")
+```
+
+# Session Info
+
+```{r session_info}
+sessionInfo()
+```
