@@ -1,0 +1,47 @@
+template:
+  light-switch: true
+  bootstrap: 5
+navbar:
+  structure:
+    left: [intro, reference, articles, news, tutorials]
+    right: [search, github, lightswitch]
+url: https://core-bioinformatics.github.io/Starlng/
+reference:
+- title: Shiny Write Utilities
+- contents:
+  - starts_with("starlng_write_app")
+- title: Shiny App Components
+- contents:
+  - starts_with("ui_")
+  - starts_with("server_")
+  - prepare_session
+  - update_gears_width
+  - update_tabs
+- title: Gene/Cell Utilities
+- contents:
+  - filter_central_cells_from_group
+  - remove_outlier_cells
+  - select_cells_by_gene_expr
+  - select_cells_by_metadata
+  - voting_scheme
+  - read_gene_from_dense_h5
+  - sort_genes_by_metadata
+  - starts_with("write_gene_matrix")
+- title: Monocle3 Utilities
+- contents:
+  - custom_learn_graph
+  - custom_pseudotime_ordering
+  - diet_monocle_object
+  - get_pseudotime_recommendation
+  - subset_monocle_by_trajectory
+  - update_monocle_partition
+- title: Stability Utilities
+- contents:
+  - clustering_pipeline
+  - community_detection_master
+  - get_clusters_consistency
+  - get_feature_loading
+  - group_by_clusters_general
+  - parallel_nn2_idx
+  - pca_reduction
+  - select_best_configuration

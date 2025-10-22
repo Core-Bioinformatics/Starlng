@@ -5,12 +5,12 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>STARLNG: STability Analysis of coReguLated Nests of Genes • Starlng</title>
-<script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<title>STability Analysis of coReguLated Nests of Genes • Starlng</title>
+<script src="lightswitch.js"></script><script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="STARLNG: STability Analysis of coReguLated Nests of Genes">
+<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="STability Analysis of coReguLated Nests of Genes">
 <meta name="description" content="A set of tools that follows the Monocle3 and ClustAssess frameworks and identifies the stable clustering of autocorrelated genes. Additionally, this package provides a Shiny application to explore the quality of the gene groups, as well as their functional interpretation across the pseudotime trajectory.">
 <meta property="og:description" content="A set of tools that follows the Monocle3 and ClustAssess frameworks and identifies the stable clustering of autocorrelated genes. Additionally, this package provides a Shiny application to explore the quality of the gene groups, as well as their functional interpretation across the pseudotime trajectory.">
 </head>
@@ -18,7 +18,7 @@
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top " aria-label="Site navigation"><div class="container">
 
     <a class="navbar-brand me-2" href="index.html">Starlng</a>
 
@@ -31,6 +31,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="articles/Starlng.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
       </ul>
 <ul class="navbar-nav">
@@ -38,6 +39,14 @@
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/Core-Bioinformatics/Starlng/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item dropdown">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-lightswitch" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true" aria-label="Light switch"><span class="fa fa-sun"></span></button>
+  <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdown-lightswitch">
+<li><button class="dropdown-item" data-bs-theme-value="light"><span class="fa fa-sun"></span> Light</button></li>
+    <li><button class="dropdown-item" data-bs-theme-value="dark"><span class="fa fa-moon"></span> Dark</button></li>
+    <li><button class="dropdown-item" data-bs-theme-value="auto"><span class="fa fa-adjust"></span> Auto</button></li>
+  </ul>
+</li>
       </ul>
 </div>
 
@@ -48,8 +57,8 @@
   <main id="main" class="col-md-9"><div class="section level1">
 <div class="page-header"><h1 id="starlng-stability-analysis-of-coregulated-nests-of-genes">STARLNG: STability Analysis of coReguLated Nests of Genes<a class="anchor" aria-label="anchor" href="#starlng-stability-analysis-of-coregulated-nests-of-genes"></a>
 </h1></div>
-<p><a href="https://github.com/r-hub/cranlogs.app" class="external-link"><img src="https://cranlogs.r-pkg.org/badges/Starlng" alt="rstudio mirror downloads"></a> <a href="https://github.com/r-hub/cranlogs.app" class="external-link"><img src="https://cranlogs.r-pkg.org/badges/grand-total/Starlng" alt="rstudio mirror downloads"></a> <a href="https://github.com/Core-Bioinformatics/Starlng" class="external-link"><img src="https://img.shields.io/github/languages/code-size/Core-Bioinformatics/Starlng.svg"></a> <a href="https://CRAN.R-project.org/package=Starlng" class="external-link"><img src="https://www.r-pkg.org/badges/version/Starlng?color=orange" alt="CRAN status"></a> <img src="https://img.shields.io/github/last-commit/Core-Bioinformatics/Starlng/main?style=flat&amp;color=white" alt="GitHub last commit (branch)"><!-- [![](https://img.shields.io/github/r-package/v/Core-Bioinformatics/Starlng%2Frelease-1.1.0?label=devel%20version&color=green)](https://github.com/Core-Bioinformatics/Starlng/tree/release-1.1.0) --></p>
-<p>This repository contains the Starlng R package, which identifies stable clusters of coexpressed genes and describes their position along the pseudotime trajectory. The package builds on top of the Monocle3 [1] and ClustAssess [2] frameworks.</p>
+<!-- [![rstudio mirror downloads](https://cranlogs.r-pkg.org/badges/Starlng)](https://github.com/r-hub/cranlogs.app) --><!-- [![rstudio mirror downloads](https://cranlogs.r-pkg.org/badges/grand-total/Starlng)](https://github.com/r-hub/cranlogs.app) --><p><a href="https://github.com/Core-Bioinformatics/Starlng" class="external-link"><img src="https://img.shields.io/github/languages/code-size/Core-Bioinformatics/Starlng.svg"></a> <img src="https://img.shields.io/github/last-commit/Core-Bioinformatics/Starlng/main?style=flat&amp;color=white" alt="GitHub last commit (branch)"><a href="https://github.com/Core-Bioinformatics/Starlng/tree/main" class="external-link"><img src="https://img.shields.io/github/r-package/v/Core-Bioinformatics/Starlng%2Fmain?label=devel%20version&amp;color=green"></a> <!-- [![CRAN status](https://www.r-pkg.org/badges/version/Starlng?color=orange)](https://CRAN.R-project.org/package=Starlng) --></p>
+<p>This repository contains the <code>Starlng</code> R package, which identifies stable clusters of coexpressed genes and describes their position along the pseudotime trajectory. The package builds on top of the <code>Monocle3</code> [1] and <code>ClustAssess</code> [2] frameworks.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>

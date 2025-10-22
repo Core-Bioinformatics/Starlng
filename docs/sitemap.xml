@@ -2,6 +2,8 @@
 <url><loc>https://core-bioinformatics.github.io/Starlng/404.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/LICENSE-text.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/LICENSE.html</loc></url>
+<url><loc>https://core-bioinformatics.github.io/Starlng/articles/Starlng.html</loc></url>
+<url><loc>https://core-bioinformatics.github.io/Starlng/articles/index.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/authors.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/index.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/reference/clustering_pipeline.html</loc></url>
@@ -47,7 +49,7 @@
 <url><loc>https://core-bioinformatics.github.io/Starlng/reference/ui_module_umap.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/reference/ui_pseudotime_select_cells.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/reference/update_gears_width.html</loc></url>
-<url><loc>https://core-bioinformatics.github.io/Starlng/reference/update_mononcle_partition.html</loc></url>
+<url><loc>https://core-bioinformatics.github.io/Starlng/reference/update_monocle_partition.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/reference/update_tabs.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/reference/voting_scheme.html</loc></url>
 <url><loc>https://core-bioinformatics.github.io/Starlng/reference/write_gene_matrix_dense_h5.html</loc></url>
