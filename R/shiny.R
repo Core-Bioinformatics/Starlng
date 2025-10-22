@@ -260,6 +260,18 @@ starlng_write_app_monocle <- function(folder_path,
         dir.create(folder_path, showWarnings = FALSE)
     }
 
+    for (mtd_column in colnames(monocle_object@colData)) {
+        if (!(inherits(monocle_object@colData[[mtd_column]], c("factor", "character")))) {
+            next
+        }
+        mtd_value <- monocle_object@colData[[mtd_column]]
+        mtd_value <- as.character(mtd_value)
+        mtd_value[is.na(mtd_value)] <- "N/A"
+        mtd_value <- factor(mtd_value)
+
+        monocle_object@colData[[mtd_column]] <- mtd_value
+    }
+
     # entire monocle object
     monocle_object <- do.call(
         custom_learn_graph,
