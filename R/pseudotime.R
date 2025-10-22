@@ -7,7 +7,7 @@
 #' @param new_partition The new partition to be updated.
 #' 
 #' @return The Monocle object with the updated partition.
-update_mononcle_partition <- function(mon_obj, new_partition) {
+update_monocle_partition <- function(mon_obj, new_partition) {
     new_partition <- factor(as.numeric(factor(new_partition)))
 
     if (!("partitions" %in% names(mon_obj@clusters@listData$UMAP))) {
@@ -166,7 +166,7 @@ custom_learn_graph <- function(mon_obj,
     }
 
     if (!is.null(metadata_for_nodes)) {
-        mon_obj <- update_mononcle_partition(mon_obj, mon_obj@colData[[metadata_for_nodes]])
+        mon_obj <- update_monocle_partition(mon_obj, mon_obj@colData[[metadata_for_nodes]])
     }
 
     if (use_partition) {

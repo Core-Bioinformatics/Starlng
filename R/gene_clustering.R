@@ -209,7 +209,7 @@ community_detection_master <- function(adj_object,
         index = seq_len(nrow(workers_indices)),
         .inorder = TRUE,
         .export = c(used_objects, used_functions),
-        .packages = c("Starlng", "SharedObject")
+        .packages = c("Starlng")
     ) %dopar% {
         qfunc <- quality_functions[workers_indices$quality_function[index]]
         res <- as.numeric(resolutions[[qfunc]][workers_indices$res[index]])
