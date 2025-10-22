@@ -279,7 +279,7 @@ server_module_table_prepare <- function(id, parent_session) {
                             if (i == j) {
                                 next
                             }
-                            unique_cells <- unique_cells & !module_mask[j, ]
+                            unique_cells <- unique_cells & (!module_mask[j, ])
                         }
                         module_cells_table[i, i] <- sum(unique_cells)
                     }
@@ -716,6 +716,14 @@ server_module_heatmap <- function(id, module_ordering) {
                 }
 
                 dist_matrix <- 1 - dist_matrix[mod_ord, mod_ord, drop = FALSE] / union_tab[mod_ord, mod_ord, drop = FALSE]
+
+                for (i in mod_ord) {
+                    for (j in mod_ord) {
+                        if (union_tab[i, j] == 0) {
+                            dist_matrix[i, j] <- 1
+                        }
+                    }
+                }
                 return(stats::hclust(stats::as.dist(dist_matrix), method = "average"))
             })
 
