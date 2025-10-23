@@ -129,8 +129,30 @@ prepare_session <- function(parent_session, reactive_dim, height_ratio = 0.7, en
     colors_path <- file.path("objects", "colours.qs2")
     assign("color_options", read_qs_format(colors_path), envir = env)
 
-    traj_path <- file.path("objects", "trajectory_ggplot.qs2")
-    assign("trajectory_gplot", read_qs_format(traj_path), envir = env)
+    trajectory_gplot <- monocle3::plot_cells(
+        env$mon_obj,
+        cell_size = 0,
+        label_roots = FALSE,
+        label_leaves = FALSE,
+        label_branch_point = FALSE,
+        label_cell_groups = FALSE,
+        label_principal_points = FALSE
+    )
+
+    is_s3 <- "layers" %in% names(trajectory_gplot)
+    if (is_s3) {
+        trajectory_gplot$layers <- trajectory_gplot$layers[length(trajectory_gplot$layers)]
+        for (other_names in names(trajectory_gplot)) {
+            if (other_names %in% c("layers")) {
+                next
+            }
+            trajectory_gplot[[other_names]] <- NULL
+        }
+    } else {
+        trajectory_gplot@layers <- trajectory_gplot@layers[length(trajectory_gplot@layers)]
+    }
+ 
+    assign("trajectory_gplot", trajectory_gplot, envir = env)
 
     moran_path <- file.path("objects", "genes_info.csv")
     if (!file.exists(moran_path)) {
