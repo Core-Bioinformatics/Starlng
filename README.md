@@ -5,6 +5,8 @@
 [![](https://img.shields.io/github/languages/code-size/Core-Bioinformatics/Starlng.svg)](https://github.com/Core-Bioinformatics/Starlng)
 ![GitHub last commit (branch)](https://img.shields.io/github/last-commit/Core-Bioinformatics/Starlng/main?style=flat&color=white)
 [![](https://img.shields.io/github/r-package/v/Core-Bioinformatics/Starlng%2Fmain?label=devel%20version&color=green)](https://github.com/Core-Bioinformatics/Starlng/tree/main)
+[![](https://zenodo.org/badge/DOI/10.5281/zenodo.17423753.svg)](https://doi.org/10.5281/zenodo.17423753)
+
 <!-- [![CRAN status](https://www.r-pkg.org/badges/version/Starlng?color=orange)](https://CRAN.R-project.org/package=Starlng) -->
 
 This repository contains the `Starlng` R package, which identifies stable clusters of coexpressed genes and describes their position along the pseudotime trajectory. The package builds on top of the `Monocle3` [1] and `ClustAssess` [2] frameworks.
@@ -55,6 +57,7 @@ The following packages are required for Starlng:
 * viridis
 
 We suggest installing the following packages for optimal performance:
+
 * doFuture
 * doParallel
 * irlba
