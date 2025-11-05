@@ -9,6 +9,8 @@
 
 <!-- [![CRAN status](https://www.r-pkg.org/badges/version/Starlng?color=orange)](https://CRAN.R-project.org/package=Starlng) -->
 
+<img src="https://raw.githubusercontent.com/Core-Bioinformatics/Starlng/gh-pages/images/Starlng_logo.png" alt="Starlng logo" width="200"/>
+
 This repository contains the `Starlng` R package, which identifies stable clusters of coexpressed genes and describes their position along the pseudotime trajectory. The package builds on top of the `Monocle3` [1] and `ClustAssess` [2] frameworks.
 
 A live example of the Starlng Shiny app can be found [here](https://mohorianulab.org/shiny/Starlng/starlng_app_pbmc3k/).
