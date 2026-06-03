@@ -229,7 +229,7 @@ plot_umap_gene <- function(umap_embedding,
                            n_coexpressed_threshold,
                            summarise_expr,
                            scale_values = FALSE,
-                           trajectory_gplot = NULL,
+                           trajectory_object = NULL,
                            trajectory_width = 0.75,
                            cell_sort_order = c("lowest", "highest", "default"),
                            cell_size = 0.3,
@@ -278,32 +278,30 @@ plot_umap_gene <- function(umap_embedding,
         gene_info[gene_info < qval] <- 0
     }
 
-    gplot_obj <- plot_umap(
-        umap_embedding = umap_embedding,
-        cell_info = gene_info,
-        mtd_name = legend_name,
-        cell_sort_order = cell_ordering,
-        scale_values = scale_values,
-        cell_size = cell_size,
-        cell_alpha = cell_alpha,
-        legend_text_size = legend_text_size,
-        axis_text_size = axis_text_size,
-        discrete_colors = list(
-            "1" = "red",
-            "2" = c("gray", "red")
-        ),
-        colourbar_width = colourbar_width,
-        continuous_colors = continuous_colors
+    return(
+        plot_umap(
+            umap_embedding = umap_embedding,
+            cell_info = gene_info,
+            mtd_name = legend_name,
+            cell_sort_order = cell_ordering,
+            scale_values = scale_values,
+            cell_size = cell_size,
+            cell_alpha = cell_alpha,
+            legend_text_size = legend_text_size,
+            axis_text_size = axis_text_size,
+            discrete_colors = list(
+                "1" = "red",
+                "2" = c("gray", "red")
+            ),
+            colourbar_width = colourbar_width,
+            continuous_colors = continuous_colors
+        ) +
+        plot_trajectory_graph(
+            trajectory_object = trajectory_object,
+            edge_size = trajectory_width,
+            plot_nodes = 0
+        )$layers
     )
-
-    if (is.null(trajectory_gplot)) {
-        return(gplot_obj)
-    }
-
-    traj_layer <- trajectory_gplot$layers[[1]]
-    traj_layer$aes_params$size <- trajectory_width 
-    gplot_obj$layers <- c(gplot_obj$layers, traj_layer)
-    return(gplot_obj)
 }
 
 # assumes the shiny context with the environment env
@@ -345,7 +343,7 @@ plot_umap_gene_shiny <- function(shiny_env,
         scale_values = scale_values,
         n_coexpressed_threshold = n_coexpressed_threshold,
         summarise_expr = summarise_expr,
-        trajectory_gplot = shiny_env$trajectory_gplot,
+        trajectory_object = shiny_env$trajectory_object,
         trajectory_width = trajectory_width,
         cell_sort_order = cell_sort_order,
         cell_size = cell_size,
@@ -370,6 +368,12 @@ plot_umap_gene_modules_shiny <- function(shiny_env,
                                          axis_text_size = 10,
                                          colourbar_height = 50,
                                          continuous_colors = NULL) {
+    is_discrete_module <- summarise_expr == "binary"
+    if (inherits(colourbar_height, "unit")) {
+        bar_height <- colourbar_height
+    } else {
+        bar_height <- grid::unit(as.numeric(colourbar_height), "points")
+    }
 
     plot_list <- lapply(names(gene_modules), function(gene_module) {
         plot_umap_gene_shiny(
@@ -401,26 +405,56 @@ plot_umap_gene_modules_shiny <- function(shiny_env,
         min(plot$data$cell_info)
     }))
 
-    for (i in seq_along(plot_list)) {
-        plot_list[[i]] <- plot_list[[i]] +
-            ggplot2::theme(
-                legend.position = "right"
-            ) +
+    legend_plot <- plot_list[[1]] +
+        ggplot2::theme(legend.position = "right")
+    if (is_discrete_module) {
+        legend_plot <- legend_plot +
+            ggplot2::guides(
+                colour = ggplot2::guide_legend(
+                    title.position = "top"
+                )
+            )
+    } else {
+        legend_plot <- legend_plot +
             ggplot2::guides(
                 colour = ggplot2::guide_colourbar(
                     title.position = "top",
-                    barheight = grid::unit(colourbar_height, "points")
+                    barheight = bar_height
                 )
+            ) +
+            ggplot2::scale_colour_gradientn(
+                name = paste0("Gene\n", summarise_expr, "\n", ifelse(scale_values, "(scaled)", "")),
+                colours = continuous_colors,
+                limits = c(min_value, max_value)
             )
     }
 
-    patchwork::wrap_plots(plotlist = plot_list, ncol = n_columns) +
-        patchwork::plot_layout(guides = "collect") &
-        ggplot2::scale_colour_gradientn(
-            name = paste0("Gene\n", summarise_expr, "\n", ifelse(scale_values, "(scaled)", "")),
-            colours = continuous_colors,
-            limits = c(min_value, max_value)
-        )
+    legend_gtable <- ggplot2::ggplotGrob(legend_plot)
+    legend_idx <- grep("^guide-box", vapply(legend_gtable$grobs, function(g) g$name, character(1)))
+
+    for (i in seq_along(plot_list)) {
+        plot_list[[i]] <- plot_list[[i]] + ggplot2::theme(legend.position = "none")
+    }
+
+    patchwork_grid <- patchwork::wrap_plots(plotlist = plot_list, ncol = n_columns)
+
+    if (!is_discrete_module) {
+        patchwork_grid <- patchwork_grid &
+            ggplot2::scale_colour_gradientn(
+                name = paste0("Gene\n", summarise_expr, "\n", ifelse(scale_values, "(scaled)", "")),
+                colours = continuous_colors,
+                limits = c(min_value, max_value)
+            )
+    }
+
+    if (length(legend_idx) == 0) {
+        return(patchwork_grid)
+    }
+
+    (
+        patchwork_grid |
+            patchwork::wrap_elements(full = legend_gtable$grobs[[legend_idx[1]]])
+    ) + patchwork::plot_layout(widths = c(1, 0.14))
 }
 
 plot_umap_gene_modules_shiny_2 <- function(module_summaries,
@@ -436,7 +470,14 @@ plot_umap_gene_modules_shiny_2 <- function(module_summaries,
                                            axis_text_size = 10,
                                            colourbar_height = 50,
                                            continuous_colors = NULL) {
-    if (module_summaries[[1]][1] %in% c("not selected", "selected")) {
+    is_discrete_module <- module_summaries[[1]][1] %in% c("not selected", "selected")
+    if (inherits(colourbar_height, "unit")) {
+        bar_height <- colourbar_height
+    } else {
+        bar_height <- grid::unit(as.numeric(colourbar_height), "points")
+    }
+
+    if (is_discrete_module) {
         legend_name <- "Cells above threshold"
         cell_ordering <- c("not selected", "selected")
     } else {
@@ -445,6 +486,7 @@ plot_umap_gene_modules_shiny_2 <- function(module_summaries,
     }
 
     print(paste(Sys.time(), "Generating plots for gene modules..."))
+    n_columns <- min(n_columns, length(module_summaries))
 
     plot_list <- lapply(names(module_summaries), function(gene_module) {
         gc()
@@ -487,28 +529,57 @@ plot_umap_gene_modules_shiny_2 <- function(module_summaries,
         min(plot$data$cell_info)
     }))
 
-    for (i in seq_along(plot_list)) {
-        plot_list[[i]] <- plot_list[[i]] +
-            ggplot2::theme(
-                legend.position = "right"
-            ) +
+    legend_plot <- plot_list[[1]] +
+        ggplot2::theme(legend.position = "right")
+    if (is_discrete_module) {
+        legend_plot <- legend_plot +
+            ggplot2::guides(
+                colour = ggplot2::guide_legend(
+                    title.position = "top"
+                )
+            )
+    } else {
+        legend_plot <- legend_plot +
             ggplot2::guides(
                 colour = ggplot2::guide_colourbar(
                     title.position = "top",
-                    barheight = grid::unit(colourbar_height, "points")
+                    barheight = bar_height
                 )
+            ) +
+            ggplot2::scale_colour_gradientn(
+                name = paste0("Gene\n", legend_detail, "\n", ifelse(scale_values, "(scaled)", "")),
+                colours = continuous_colors,
+                limits = c(min_value, max_value)
             )
     }
 
     print(paste(Sys.time(), "Finalised plots for gene modules..."))
 
-    patchwork::wrap_plots(plotlist = plot_list, ncol = n_columns) +
-        patchwork::plot_layout(guides = "collect") &
-        ggplot2::scale_colour_gradientn(
-            name = paste0("Gene\n", legend_detail, "\n", ifelse(scale_values, "(scaled)", "")),
-            colours = continuous_colors,
-            limits = c(min_value, max_value)
-        )
+    legend_gtable <- ggplot2::ggplotGrob(legend_plot)
+    legend_idx <- grep("^guide-box", vapply(legend_gtable$grobs, function(g) g$name, character(1)))
+
+    for (i in seq_along(plot_list)) {
+        plot_list[[i]] <- plot_list[[i]] + ggplot2::theme(legend.position = "none")
+    }
+
+    patchwork_grid <- patchwork::wrap_plots(plotlist = plot_list, ncol = n_columns)
+    if (!is_discrete_module) {
+        patchwork_grid <- patchwork_grid &
+            ggplot2::scale_colour_gradientn(
+                name = paste0("Gene\n", legend_detail, "\n", ifelse(scale_values, "(scaled)", "")),
+                colours = continuous_colors,
+                limits = c(min_value, max_value)
+            )
+    }
+
+    if (length(legend_idx) == 0) {
+        return(patchwork_grid)
+    }
+
+    (
+        patchwork_grid |
+            patchwork::wrap_elements(full = legend_gtable$grobs[[legend_idx[1]]])
+    ) + patchwork::plot_layout(widths = c(1, 0.14))
 }
 
 generate_cell_heatmap <- function(expression_matrix,

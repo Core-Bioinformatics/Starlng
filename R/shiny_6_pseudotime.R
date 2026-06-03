@@ -376,25 +376,27 @@ server_pseudotime_select_cells_panel <- function(id) {
                             names(mask) <- rownames(env$mtd_df)
                             mask[actual_cells()] <- "selected"
                             mask <- factor(mask)
-                            gplot_obj <- plot_umap(
-                                umap_embedding = env$umap_df,
-                                cell_info = mask,
-                                mtd_name = "Selected cells",
-                                cell_sort_order = c("not selected", "selected"),
-                                cell_size = input$settings_pt_size,
-                                cell_alpha = input$settings_pt_alpha,
-                                legend_text_size = input$settings_legend_size,
-                                axis_text_size = input$settings_axis_size,
-                                discrete_colors = list(
-                                    "1" = highlight_colour,
-                                    "2" = c("gray", highlight_colour)
-                                )
+                            return(
+                                plot_umap(
+                                    umap_embedding = env$umap_df,
+                                    cell_info = mask,
+                                    mtd_name = "Selected cells",
+                                    cell_sort_order = c("not selected", "selected"),
+                                    cell_size = input$settings_pt_size,
+                                    cell_alpha = input$settings_pt_alpha,
+                                    legend_text_size = input$settings_legend_size,
+                                    axis_text_size = input$settings_axis_size,
+                                    discrete_colors = list(
+                                        "1" = highlight_colour,
+                                        "2" = c("gray", highlight_colour)
+                                    )
+                                ) +
+                                plot_trajectory_graph(
+                                    trajectory_object = env$trajectory_object,
+                                    edge_size = input$settings_trajectory_width,
+                                    plot_nodes = 0
+                                )$layers
                             )
-
-                            traj_layer <- env$trajectory_gplot$layers[[1]]
-                            traj_layer$aes_params$size <- input$settings_trajectory_width 
-                            gplot_obj$layers <- c(gplot_obj$layers, traj_layer)
-                            gplot_obj
                         }
 
                     )
@@ -493,24 +495,26 @@ server_pseudotime_select_cells <- function(id) {
                         width = plt_height,
                         height = plt_height,
                         {
-                            gplot_obj <- plot_umap(
-                                umap_embedding = env$umap_df,
-                                cell_info = pseudotime_value,
-                                mtd_name = "pseudotime",
-                                cell_sort_order = input$settings_pt_order,
-                                cell_size = input$settings_pt_size,
-                                cell_alpha = input$settings_pt_alpha,
-                                legend_text_size = input$settings_legend_size,
-                                axis_text_size = input$settings_axis_size,
-                                discrete_colors = env$color_options$discrete,
-                                colourbar_width = plt_height,
-                                continuous_colors = env$color_options$continuous[[input$settings_colour_scheme]]
+                            return(
+                                plot_umap(
+                                    umap_embedding = env$umap_df,
+                                    cell_info = pseudotime_value,
+                                    mtd_name = "pseudotime",
+                                    cell_sort_order = input$settings_pt_order,
+                                    cell_size = input$settings_pt_size,
+                                    cell_alpha = input$settings_pt_alpha,
+                                    legend_text_size = input$settings_legend_size,
+                                    axis_text_size = input$settings_axis_size,
+                                    discrete_colors = env$color_options$discrete,
+                                    colourbar_width = plt_height,
+                                    continuous_colors = env$color_options$continuous[[input$settings_colour_scheme]]
+                                ) +
+                                plot_trajectory_graph(
+                                    trajectory_object = env$trajectory_object,
+                                    edge_size = input$settings_trajectory_width,
+                                    plot_nodes = 0
+                                )$layers
                             )
-
-                            traj_layer <- env$trajectory_gplot$layers[[1]]
-                            traj_layer$aes_params$size <- input$settings_trajectory_width 
-                            gplot_obj$layers <- c(gplot_obj$layers, traj_layer)
-                            gplot_obj
                         }
                     )
                 })

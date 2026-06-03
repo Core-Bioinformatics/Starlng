@@ -84,14 +84,14 @@ server_metadata_umap_panel <- function(id) {
                         continuous_colors = env$color_options$continuous[[input$settings_colour_scheme]]
                     )
 
-                    if ("layers" %in% names(env$trajectory_gplot)) {
-                        traj_layer <- env$trajectory_gplot$layers[[1]]
-                    } else {
-                        traj_layer <- env$trajectory_gplot@layers[[1]]
-                    }
-                    traj_layer$aes_params$size <- input$settings_trajectory_width 
-                    gplot_obj$layers <- c(gplot_obj$layers, traj_layer)
-                    gplot_obj
+                    return(
+                        gplot_obj +
+                        plot_trajectory_graph(
+                            trajectory_object = env$trajectory_object,
+                            edge_size = input$settings_trajectory_width,
+                            plot_nodes = 0
+                        )$layers
+                    )
                 })
             })
 
