@@ -8,7 +8,7 @@ Description: A set of tools that follows the 'Monocle3' and 'ClustAssess' framew
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
+RoxygenNote: 7.3.2
 Additional_repositories: https://blaserlab.r-universe.dev
 biocViews:
     Software,
@@ -42,7 +42,6 @@ Imports:
     methods,
     monocle3,
     patchwork,
-    qs,
     qs2,
     qualpalr,
     RANN,
@@ -60,6 +59,8 @@ Imports:
 Suggests: 
     doFuture,
     doParallel,
+    ggraph,
+    ggrepel,
     irlba,
     testthat (>= 3.0.0),
     parallel,

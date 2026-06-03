@@ -148,8 +148,7 @@ read_qs_format <- function(fl_path) {
 
     fl_path <- sub("\\.qs2$", ".qs", fl_path)
     if (file.exists(fl_path)) {
-        warning("Using deprecated `qs` format.")
-        return(qs::qread(fl_path, nthreads = 1))
+        stop("Using deprecated `qs` format. Consider re-saving the file in `qs2` format for faster loading.")
     }
 
     stop(paste0("File not found: ", fl_path, "2"))
