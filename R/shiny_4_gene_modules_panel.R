@@ -596,12 +596,10 @@ server_grid_umaps <- function(id, module_ordering) {
                 summarise_expr <- input$summarise_expr
                 module_mask <- env$modules_mask()
                 selected_modules <- module_ordering()
-                trigger_val <- env$trigger4()
 
                 req_gear_umap(session, "settings")
 
                 shiny::isolate({
-                    shiny::req(trigger_val)
                     shiny::req(patch_ncol > 0, !is.null(module_summ), !is.null(win_dim))
                     shiny::req(selected_modules, all(selected_modules %in% names(module_summ)))
                     gc()
@@ -640,51 +638,45 @@ server_grid_umaps <- function(id, module_ordering) {
                 })
             })
 
-            shiny::observe({
-                cmp_plot <- composite_plot()
-                wdim <- env$window_dim()
-
-                shiny::isolate({
-                    shiny::req(cmp_plot, !is.null(cmp_plot), !is.null(wdim))
-                    print(paste(Sys.time(), "Rendering module UMAP plot."))
+            output$module_umap_plot <- shiny::renderPlot(
+                height = function() {
+                    shiny::req(env$window_dim(), input$n_columns > 0, env$chosen_modules())
                     plot_cols <- input$n_columns
                     plot_rows <- ceiling(length(env$chosen_modules()) / plot_cols)
                     plt_height <- env$window_dim()[2] / 1.05
                     plt_width <- env$window_dim()[1] / 1.05
                     panel_width <- plt_width / plot_cols
                     height_from_panels <- panel_width * plot_rows * 1.1
-                    plt_height <- min(plt_height, height_from_panels)
-                    env$trigger4(FALSE)
+                    min(plt_height, height_from_panels)
+                },
+                width = function() {
+                    shiny::req(env$window_dim())
+                    env$window_dim()[1] / 1.05
+                },
+                {
+                    cmp_plot <- composite_plot()
+                    shiny::req(cmp_plot)
+                    print(paste(Sys.time(), "Rendering module UMAP plot."))
+                    print(cmp_plot)
+                }
+            )
 
-                    output$module_umap_plot <- shiny::renderPlot(
-                        height = plt_height,
-                        width = plt_width,
-                        cmp_plot
-                    )
-                })
-            })
-
-            shiny::observe({
-                shiny::req(input$filename_module_umap, input$filetype_module_umap, input$width_module_umap, input$height_module_umap)
-                cmp_plot <- composite_plot()
-
-                shiny::isolate({
-                    output$download_module_umap <- shiny::downloadHandler(
-                        filename = function() {
-                            paste(input$filename_module_umap, tolower(input$filetype_module_umap), sep = ".")
-                        },
-                        content = function(file) {
-                            shiny::req(cmp_plot)
-                            ggplot2::ggsave(
-                                filename = file,
-                                plot = cmp_plot,
-                                width = input$width_module_umap,
-                                height = input$height_module_umap
-                            )
-                        }
-                    )
-                })
-            })
+            output$download_module_umap <- shiny::downloadHandler(
+                filename = function() {
+                    req_gear_download(session, "module_umap")
+                    paste(input$filename_module_umap, tolower(input$filetype_module_umap), sep = ".")
+                },
+                content = function(file) {
+                    req_gear_download(session, "module_umap")
+                    cmp_plot <- composite_plot()
+                    shiny::req(cmp_plot)
+                    device_fun <- save_filetypes[[input$filetype_module_umap]]
+                    shiny::req(!is.null(device_fun))
+                    device_fun(file, width = input$width_module_umap, height = input$height_module_umap)
+                    on.exit(grDevices::dev.off(), add = TRUE)
+                    print(cmp_plot)
+                }
+            )
         }
     )
 }
@@ -823,6 +815,7 @@ server_module_heatmap <- function(id, module_ordering) {
 
             shiny::observe({
                 htmp_obj <- heatmap_obj()
+                req_gear_download(session, "heatmap")
 
                 output$modules_heatmap <- shiny::renderPlot(
                     height = env$window_dim()[2] / 1.05,
@@ -839,9 +832,11 @@ server_module_heatmap <- function(id, module_ordering) {
                     },
                     content = function(file) {
                         shiny::req(htmp_obj)
-                        save_filetypes[[input$filetype_heatmap]](file, width = input$width_heatmap, height = input$height_heatmap)
-                        ComplexHeatmap::draw(htmp_obj)
-                        grDevices::dev.off()
+                        device_fun <- save_filetypes[[input$filetype_heatmap]]
+                        shiny::req(!is.null(device_fun))
+                        device_fun(file, width = input$width_heatmap, height = input$height_heatmap)
+                        on.exit(grDevices::dev.off(), add = TRUE)
+                        ComplexHeatmap::draw(htmp_obj, heatmap_legend_side = "right", annotation_legend_side = "right")
                     }
                         
                 )
