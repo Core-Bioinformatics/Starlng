@@ -20,23 +20,31 @@ get_feature_loading <- function(expr_matrix, npcs = 30, approx = FALSE, ...) {
     if (inherits(expr_matrix, "dgCMatrix")) {
         transpose_f <- Matrix::t
     }
+    gene_names <- rownames(expr_matrix)
+    npcs <- min(npcs, ncol(expr_matrix) %/% 2)
     
     if (!approx) {
-        return(stats::prcomp(
+        emb <- stats::prcomp(
             transpose_f(expr_matrix),
             center = TRUE,
             scale = TRUE,
             rank. = npcs,
             retx = TRUE,
             ...
-        )$rotation)
+        )$rotation
+        rownames(emb) <- gene_names
+        colnames(emb) <- paste0("PC", seq_len(npcs))
+        return(emb)
     }
 
-    return(irlba::irlba(
+    emb <- irlba::irlba(
         transpose_f(expr_matrix),
         nv = npcs,
         ...
-    )$v)
+    )$v
+    rownames(emb) <- gene_names
+    colnames(emb) <- paste0("PC", seq_len(npcs))
+    return(emb)
 }
 
 #' Get PCA reduction from an expression matrix

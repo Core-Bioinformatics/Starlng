@@ -311,6 +311,10 @@ clustering_pipeline <- function(embedding,
     nn_idx <- parallel_nn2_idx(embedding, k = n_neighbours[1])
 
     clusters_list <- list()
+    embedding_list <- list(
+        "embedding" = embedding,
+        "adj_matrix" = list()
+    )
     for (n_neigh in n_neighbours) {
         # TODO check if you can build the adj matrix based on the previous one by deelting some neighbours
         nn_adj_matrix <- build_adj_from_idx(nn_idx, n_neigh, graph_type, prune_value)
@@ -326,13 +330,20 @@ clustering_pipeline <- function(embedding,
             graph_type = graph_type,
             memory_log_file = memory_log_file
         )
+        embedding_list$adj_matrix[[as.character(n_neigh)]] <- nn_adj_matrix
         # clear_psock_memory()
     }
 
     if (!merge_identical_partitions) {
-        return(clusters_list)
+        return(list(
+            "clusters_list" = clusters_list,
+            "embedding_list" = embedding_list
+        ))
     }
 
     clusters_list <- group_by_clusters_general(clusters_list, 3)
-    return(get_clusters_consistency(clusters_list))
+    return(list(
+        "clusters_list" = get_clusters_consistency(clusters_list),
+        "embedding_list" = embedding_list
+    ))
 }

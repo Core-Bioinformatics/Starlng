@@ -231,6 +231,7 @@ server_gene_clustering <- function(id, filtered_genes) {
         id,
         function(input, output, session) {
             clust_df <- list()
+            embedding_list <- list()
             shinyjs::hide("ecc_threshold")
             shinyjs::hide("freq_threshold")
 
@@ -252,6 +253,16 @@ server_gene_clustering <- function(id, filtered_genes) {
                 return(env$preloaded_stable_modules)
             })
 
+            embedding_list[["preloaded"]] <- shiny::reactive({
+                fpath <- file.path("objects", "selected_embedding.qs2")
+                if (!file.exists(fpath)) {
+                    print("returning")
+                    return(NA)
+                }
+                shiny::req(file.exists(fpath))
+                return(qs2::qs_read(fpath))
+            })
+
             shiny::observe({
                 shiny::req(filtered_genes())
                 shiny::isolate({
@@ -271,7 +282,7 @@ server_gene_clustering <- function(id, filtered_genes) {
                 print(Sys.time())
                 res_list <- list(seq(from = input$res_start, to = input$res_stop, by = input$res_step))
                 names(res_list) <- paste0(input$qfunc, "VertexPartition")
-                cl_result <- group_by_clusters_general(clustering_pipeline(
+                cl_result <- clustering_pipeline(
                     # TODO change this after you reach a conclusion about the best option for the input matrix
                     embedding = get_feature_loading(
                         expr_matrix = read_gene_from_dense_h5(
@@ -289,9 +300,11 @@ server_gene_clustering <- function(id, filtered_genes) {
                     number_iterations = input$n_iterations,
                     number_repetitions = input$n_seeds,
                     merge_identical_partitions = FALSE
-                ), 3)
+                )
+                cl_result$clusters_list <- group_by_clusters_general(cl_result$clusters_list, 3)
 
-                cl_result <- get_clusters_consistency(cl_result)[[1]][[1]]
+                cl_result$clusters_list <- get_clusters_consistency(cl_result$clusters_list)[[1]][[1]]
+                cl_result$embedding_list$adj_matrix <- cl_result$embedding_list$adj_matrix[[1]]
                 print(Sys.time())
                 shinyjs::enable("run_clustering")
                 shinyjs::show("ecc_threshold")
@@ -301,11 +314,13 @@ server_gene_clustering <- function(id, filtered_genes) {
             }) %>% shiny::bindEvent(input$run_clustering)
 
             clust_df[["realtime"]] <- shiny::reactive({
-                shiny::req(realtime_clust_result(), input$ecc_threshold, input$freq_threshold)
+                shiny::req(input$ecc_threshold, input$freq_threshold)
+                rlt_clust <- realtime_clust_result()
+                shiny::req(rlt_clust)
 
                 shiny::isolate({
                     cl_result <- ClustAssess::choose_stable_clusters(
-                        realtime_clust_result()$k,
+                        rlt_clust$clusters_list$k,
                         ecc_threshold = input$ecc_threshold,
                         freq_threshold = input$freq_threshold
                     )
@@ -324,6 +339,11 @@ server_gene_clustering <- function(id, filtered_genes) {
 
                     return(stb_df)
                 })
+            })
+
+            embedding_list[["realtime"]] <- shiny::reactive({
+                shiny::req(realtime_clust_result())
+                return(realtime_clust_result()$embedding_list)
             })
 
             shiny::observe({
@@ -441,6 +461,33 @@ server_gene_clustering <- function(id, filtered_genes) {
                     return(stb_df)
                 })
             }) %>% shiny::bindEvent(input$create_family)
+
+            embedding_list[["custom"]] <- shiny::reactive({
+                stb_df <- clust_df[["custom"]]()
+                shiny::req(stb_df)
+                n_neighbours <- input$n_neighbours
+                graph_type <- tolower(input$graph_type)
+                shiny::req(n_neighbours, graph_type)
+
+                shiny::isolate({
+                    stb_df <- stb_df$genes
+                    emb <- get_feature_loading(
+                        expr_matrix = read_gene_from_dense_h5(
+                            gene_names = stb_df,
+                            matrix_h5_path = file.path("objects", "expression.h5"),
+                            index_genes = env$genes[stb_df],
+                            check_intersect = FALSE
+                        ),
+                        approx = TRUE
+                    )
+                    nn_idx <- parallel_nn2_idx(emb, n_neighbours)
+                    adj_matrix <- build_adj_from_idx(nn_idx, n_neighbours, graph_type, -1)
+                    return(list(
+                        "embedding" = emb,
+                        "adj_matrix" = adj_matrix
+                    ))
+                })
+            })
 
             shiny::observe({
                 shiny::req(
@@ -705,15 +752,28 @@ server_gene_clustering <- function(id, filtered_genes) {
             })
 
             shiny::observe({
-                shiny::req(input$gene_clusters_options, clust_df[[input$tabset]]())
+                gene_clusters_options <- input$gene_clusters_options
+                tabset <- input$tabset
+                shiny::req(gene_clusters_options, tabset, tabset %in% names(clust_df))
+                current_df <- clust_df[[tabset]]()
+                shiny::req(!is.null(current_df))
+                current_embedding <- embedding_list[[tabset]]()
 
                 shiny::isolate({
                     env$modules_table_spearman(NULL)
                     shinyjs::disable("select_module")
-                    module <- clust_df[[input$tabset]]()[, input$gene_clusters_options]
-                    names(module) <- rownames(clust_df[[input$tabset]]())
+                    module <- current_df[, gene_clusters_options]
+                    names(module) <- rownames(current_df)
                     env$chosen_modules(split(names(module), module))
-                    print(paste(Sys.time(), "Selected module:", input$gene_clusters_options))
+
+                    if (!is.null(current_embedding) && !is.na(current_embedding)) {
+                        env$chosen_embedding(current_embedding$embedding)
+                        env$chosen_graph(current_embedding$adj_matrix)
+                    } else {
+                        env$chosen_embedding(NULL)
+                        env$chosen_graph(NULL)
+                    }
+                    print(paste(Sys.time(), "Selected module:", gene_clusters_options))
                 })
             }) %>% shiny::bindEvent(input$select_module)
 
