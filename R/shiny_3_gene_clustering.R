@@ -254,9 +254,8 @@ server_gene_clustering <- function(id, filtered_genes) {
             })
 
             embedding_list[["preloaded"]] <- shiny::reactive({
-                fpath <- file.path("objects", "selected_embedding.qs2")
+                fpath <- file.path("objects", "gene_embedding.qs2")
                 if (!file.exists(fpath)) {
-                    print("returning")
                     return(NA)
                 }
                 shiny::req(file.exists(fpath))
@@ -305,6 +304,16 @@ server_gene_clustering <- function(id, filtered_genes) {
 
                 cl_result$clusters_list <- get_clusters_consistency(cl_result$clusters_list)[[1]][[1]]
                 cl_result$embedding_list$adj_matrix <- cl_result$embedding_list$adj_matrix[[1]]
+                set.seed(42)
+                cl_result$embedding_list$umap <- uwot::umap(
+                    cl_result$embedding_list$embedding,
+                    n_neighbors = min(30, nrow(cl_result$embedding_list$embedding) - 1),
+                    metric = "cosine",
+                    min_dist = 0.3,
+                    n_components = 2
+                ) %>% as.data.frame()
+                rownames(cl_result$embedding_list$umap) <- rownames(cl_result$embedding_list$embedding)
+                colnames(cl_result$embedding_list$umap) <- c("UMAP_1", "UMAP_2")
                 print(Sys.time())
                 shinyjs::enable("run_clustering")
                 shinyjs::show("ecc_threshold")
@@ -482,9 +491,20 @@ server_gene_clustering <- function(id, filtered_genes) {
                     )
                     nn_idx <- parallel_nn2_idx(emb, n_neighbours)
                     adj_matrix <- build_adj_from_idx(nn_idx, n_neighbours, graph_type, -1)
+                    set.seed(42)
+                    umap_emb <-  uwot::umap(
+                        emb,
+                        n_neighbors = min(30, nrow(emb) - 1),
+                        metric = "cosine",
+                        min_dist = 0.3,
+                        n_components = 2
+                    ) %>% as.data.frame()
+                    rownames(umap_emb) <- rownames(emb)
+                    colnames(umap_emb) <- c("UMAP_1", "UMAP_2")
                     return(list(
                         "embedding" = emb,
-                        "adj_matrix" = adj_matrix
+                        "adj_matrix" = adj_matrix,
+                        "umap" = umap_emb
                     ))
                 })
             })
@@ -765,19 +785,21 @@ server_gene_clustering <- function(id, filtered_genes) {
                     module <- current_df[, gene_clusters_options]
                     names(module) <- rownames(current_df)
                     env$chosen_modules(split(names(module), module))
+                    env$clustering_type(tabset)
 
-                    if (!is.null(current_embedding) && !is.na(current_embedding)) {
+                    if (!is.null(current_embedding)) {
+                        # TODO is the embedding actually needed?
                         env$chosen_embedding(current_embedding$embedding)
                         env$chosen_graph(current_embedding$adj_matrix)
+                        env$chosen_umap(current_embedding$umap)
                     } else {
                         env$chosen_embedding(NULL)
                         env$chosen_graph(NULL)
+                        env$chosen_umap(NULL)
                     }
                     print(paste(Sys.time(), "Selected module:", gene_clusters_options))
                 })
             }) %>% shiny::bindEvent(input$select_module)
-
-            
         }
     )
 }
