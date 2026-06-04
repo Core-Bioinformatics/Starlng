@@ -52,17 +52,16 @@ voting_scheme <- function(expression_matrix,
     expression_matrix <- expression_matrix[genes, , drop = FALSE]
     n_coexpressed_thresh <- max(min(n_coexpressed_thresh, nrow(expression_matrix)), 1)
 
+    mask_expressed <- expression_matrix > thresh_value
+
     if (thresh_percentile > 0) {
         thresh_value <- sapply(genes, function(gene) {
-            non_zero_values <- expression_matrix[gene, ]
-            non_zero_values <- non_zero_values[non_zero_values > 0]
+            non_zero_values <- expression_matrix[gene, mask_expressed[gene, ]]
             stats::quantile(non_zero_values, probs = thresh_percentile)
         })
-    } else {
-        thresh_value <- rep(thresh_value[1], length(genes))
+        mask_expressed <- expression_matrix > thresh_value
     }
 
-    mask_expressed <- expression_matrix > thresh_value
     index_cells <- colSums(mask_expressed) >= n_coexpressed_thresh
     if (is.null(summary_function)) {
         cell_info <- rep("not selected", ncol(expression_matrix))
