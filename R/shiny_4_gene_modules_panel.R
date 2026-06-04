@@ -117,6 +117,103 @@ ui_module_heatmap <- function(id) {
     )
 }
 
+ui_gene_hub_scores <- function(id) {
+    ns <- shiny::NS(id)
+
+    shiny::tagList(
+        shiny::h2("Gene Hub Scores", id = "gene_hub_scores_panel"),
+        DT::DTOutput(ns("gene_hub_scores_table"), height = "auto", width = "90%"),
+        # download as csv
+        shiny::downloadButton(ns("download_gene_hub_scores"), "Download gene hub scores")
+    )
+}
+
+ui_gene_umap_hubs <- function(id) {
+    ns <- shiny::NS(id)
+
+    shiny::tagList(
+        shiny::h2("Gene UMAP", id = "gene_umap_panel"),
+        shiny::splitLayout(
+            cellWidths = c("40px", "40px", "440px"),
+            shinyWidgets::dropdownButton(
+                inputId = ns("gear_umap_hubs"),
+                shiny::splitLayout(
+                    shiny::tagList(
+                        shiny::sliderInput(
+                            inputId = ns("text_size"),
+                            label = "Text size",
+                            min = 5.00, max = 30.00, value = 6.00, step = 0.5
+                        ),
+                        shiny::sliderInput(
+                            inputId = ns("axis_size"),
+                            label = "Axis labels size",
+                            min = 5.00, max = 30.00, value = 10.00, step = 0.5
+                        ),
+                        shiny::sliderInput(
+                            inputId = ns("legend_size"),
+                            label = "Legend size",
+                            min = 5.00, max = 30.00, value = 10.00, step = 0.5
+                        ),
+                        shiny::sliderInput(
+                            inputId = ns("pt_alpha"),
+                            label = "Colour alpha",
+                            min = 0.00, max = 1.00, value = 0.8, step = 0.05
+                        )
+                    ),
+                    shiny::tagList(
+                        shiny::sliderInput(
+                            inputId = ns("pt_size"),
+                            label = "Point size",
+                            min = 0.05, max = 20.00, value = 2.00, step = 0.1
+                        ),
+                        shiny::sliderInput(
+                            inputId = ns("edge_range_width"),
+                            label = "Edge width range",
+                            min = 0.00, max = 5.00, value = c(0.05, 0.50), step = 0.05
+                        ),
+                        shiny::sliderInput(
+                            inputId = ns("top_edges"),
+                            label = "Top edges (%)",
+                            min = 0, max = 100, value = 10, step = 0.1
+                        ),
+                        shiny::sliderInput(
+                            inputId = ns("percent_nodes"),
+                            label = "Percent nodes (Non-hubs)",
+                            min = 0, max = 100, value = 100, step = 0.1
+                        )
+                    )
+                ),
+                circle = TRUE,
+                status = "success",
+                size = "sm",
+                icon = shiny::icon("cog")
+            ),
+            gear_download(ns, "gene_umap_hubs", "gene_umap_hubs"),
+            shiny::splitLayout(
+                shiny::selectizeInput(
+                    inputId = ns("select_modules"),
+                    label = "Select modules",
+                    choices = NULL,
+                    selected = NULL,
+                    multiple = TRUE,
+                    options = list(
+                        placeholder = "Select modules",
+                        plugins = list("remove_button", "drag_drop"),
+                        delimiter = ",",
+                        create = TRUE
+                    )
+                ),
+                shiny::numericInput(
+                    inputId = ns("n_hub_genes"),
+                    label = "Number of hub genes",
+                    min = 1, max = 20, value = 2, step = 1
+                )
+            )
+        ),
+        shiny::plotOutput(ns("gene_umap_hubs_plot"), height = "auto")
+    )
+}
+
 #' UI - Gene Module UMAP
 #'
 #' @description Creates the UI interface for the Gene Module UMAP panel
@@ -166,7 +263,9 @@ ui_module_umap <- function(id) {
             cellWidths = c("50%", "45%")
         ),
         ui_grid_umaps(ns("gene_modules_umap")),
-        ui_module_heatmap(ns("gene_modules_heatmap"))
+        ui_module_heatmap(ns("gene_modules_heatmap")),
+        ui_gene_hub_scores(ns("gene_hub_scores")),
+        ui_gene_umap_hubs(ns("gene_umap_hubs"))
     )
 }
 
@@ -186,6 +285,7 @@ server_module_table_prepare <- function(id, parent_session) {
             shiny::observe({
                 gene_modules <- env$chosen_modules()
                 summ_expr <- input$summarise_expr
+                clustering_type <- env$clustering_type()
 
                 shiny::isolate({
                     shiny::req(gene_modules, summ_expr, length(gene_modules) > 0)
@@ -197,28 +297,48 @@ server_module_table_prepare <- function(id, parent_session) {
                         "#genes" = function(x) { sum(x > 0) },
                         NULL
                     )
+                    n_modules <- length(gene_modules)
 
-                    summ_list <- lapply(names(gene_modules), function(gene_module) {
-                        gc()
-                        print(paste(Sys.time(), "Processing module:", gene_module))
-                        gene_matrix <- read_gene_from_dense_h5(
-                            gene_names = gene_modules[[gene_module]],
-                            matrix_h5_path = file.path("objects", "expression.h5"),
-                            index_genes = env$genes[gene_modules[[gene_module]]],
-                            check_intersect = FALSE
-                        )
+                    condition_loading <- clustering_type == "preloaded"
 
-                        return(voting_scheme(
-                            expression_matrix = gene_matrix,
-                            genes = gene_modules[[gene_module]],
-                            thresh_percentile = 0,
-                            thresh_value = 0,
-                            n_coexpressed_thresh = 1,
-                            summary_function = summary_function
+                    if (condition_loading) {
+                        print(paste(Sys.time(), "Loading precomputed module summaries from HDF5 file."))
+                        module_names <- as.character(rhdf5::h5read(
+                            file = file.path("objects", "module_summaries.h5"),
+                            name = paste0(n_modules, "/modules")
                         ))
-                    })
-                    print(paste(Sys.time(), "Finished processing modules."))
-                    names(summ_list) <- names(gene_modules)
+                        summ_list <- rhdf5::h5read(
+                            file = file.path("objects", "module_summaries.h5"),
+                            name = paste0(n_modules, "/expression_summaries"),
+                            index = list(NULL, NULL)
+                        )
+                        colnames(summ_list) <- module_names
+                        rownames(summ_list) <- env$cells
+                        summ_list <- split(summ_list, col(summ_list))
+                        print(paste(Sys.time(), "Finished loading precomputed module summaries."))
+                    } else {
+                        summ_list <- lapply(names(gene_modules), function(gene_module) {
+                            gc()
+                            print(paste(Sys.time(), "Processing module:", gene_module))
+                            gene_matrix <- read_gene_from_dense_h5(
+                                gene_names = gene_modules[[gene_module]],
+                                matrix_h5_path = file.path("objects", "expression.h5"),
+                                index_genes = env$genes[gene_modules[[gene_module]]],
+                                check_intersect = FALSE
+                            )
+
+                            return(voting_scheme(
+                                expression_matrix = gene_matrix,
+                                genes = gene_modules[[gene_module]],
+                                thresh_percentile = 0,
+                                thresh_value = 0,
+                                n_coexpressed_thresh = 1,
+                                summary_function = summary_function
+                            ))
+                        })
+                        print(paste(Sys.time(), "Finished processing modules."))
+                        names(summ_list) <- names(gene_modules)
+                    }
 
                     env$modules_summaries(summ_list)
 
@@ -234,11 +354,14 @@ server_module_table_prepare <- function(id, parent_session) {
                 module_summ <- env$modules_summaries_scaled()
                 thresh_vals <- thresholds_reactive()
                 psd_value <- env$psd_value()
+                clustering_type <- env$clustering_type()
+                summ_expr <- input$summarise_expr
+                gene_modules <- env$chosen_modules()
 
                 shiny::isolate({
                     perc_cells <- 1 - thresh_vals$top_cells_percent / 100
                     scale_threshold <- thresh_vals$scale_threshold
-                    shiny::req(perc_cells >= 0, perc_cells <= 1, scale_threshold >= 0, scale_threshold <= 1, !is.null(module_summ), psd_value)
+                    shiny::req(perc_cells >= 0, perc_cells <= 1, scale_threshold >= 0, scale_threshold <= 1, !is.null(module_summ), psd_value, clustering_type, summ_expr)
                     psd_mask <- !is.na(psd_value)
 
                     mask_nrow <- length(module_summ)
@@ -374,6 +497,70 @@ server_module_table_prepare <- function(id, parent_session) {
 
                     modules_stats_summary <- modules_stats_summary %>%
                         dplyr::arrange(.data$median_pseudotime, .data$iqr_pseudotime, .data$median_umap_distance)
+
+                    # hub scores
+                    n_modules <- length(module_summ)
+                    condition_loading <- clustering_type == "preloaded" &
+                        rhdf5::h5read(file.path("objects", "module_summaries.h5"), "summary_method") == summ_expr &
+                        rhdf5::h5read(file.path("objects", "module_summaries.h5"), "scale_threshold") == thresh_vals$scale_threshold &
+                        sum(psd_mask) == length(module_summ[[1]])
+                    score_df <- rhdf5::h5read(
+                        file = file.path("objects", "module_summaries.h5"),
+                        name = paste0(n_modules, "/gene_hub_stats")
+                    )
+                    rownames(score_df) <- as.character(rhdf5::h5read(
+                        file = file.path("objects", "module_summaries.h5"),
+                        name = "genes"
+                    ))
+                    for (i in seq_len(5)) {
+                        score_df[,i] <- as.numeric(score_df[,i])
+                    }
+                    score_df$module <- as.character(score_df$module)
+
+                    if (condition_loading) {
+                        env$gene_hub_scores(score_df)
+                        env$closest_node_per_module(
+                            setNames(
+                                rhdf5::h5read(
+                                    file = file.path("objects", "module_summaries.h5"),
+                                    name = paste0(n_modules, "/closest_nodes_to_module")
+                                ),
+                                rhdf5::h5read(
+                                    file = file.path("objects", "module_summaries.h5"),
+                                    name = paste0(n_modules, "/modules")
+                                )
+                            )
+                        )
+                    } else {
+                        module_ordering <- setNames(score_df$module, rownames(score_df))
+                        score_df <- do.call(rbind, lapply(names(module_summ), function(module_name) {
+                            get_gene_overlap_stat(
+                                expr_matrix = read_gene_from_dense_h5(
+                                    gene_names = gene_modules[[module_name]],
+                                    matrix_h5_path = file.path("objects", "expression.h5"),
+                                    index_genes = env$genes[gene_modules[[module_name]]],
+                                    check_intersect = FALSE
+                                )[, psd_mask],
+                                gene_modules = gene_modules[[module_name]],
+                                module_expr = module_mask[module_name, ],
+                                gene_expression_percentile = 0.5,
+                                scale = FALSE,
+                                total_weight = setNames(score_df$total_weight, rownames(score_df))
+                            )
+                        }))
+                        score_df$module <- module_ordering[rownames(score_df)]
+
+                        closest_node_per_module <- get_closest_node_to_module(
+                            trajectory_object = env$trajectory_object,
+                            cell_umap = env$umap_df,
+                            module_expr = lapply(names(module_summ), function(module_name) {
+                                    module_mask[module_name, ]
+                                }) %>% setNames(names(module_summ)),
+                        )
+                        env$closest_node_per_module(closest_node_per_module)
+                    }
+                    score_df$module <- factor(as.character(score_df$module), levels = modules_stats_summary$module)
+                    env$gene_hub_scores(score_df %>% dplyr::arrange(.data$module, dplyr::desc(.data$combined_score)))
 
                     env$modules_table_cells(module_cells_table)
                     env$modules_union_cells(module_union_cells)
@@ -846,6 +1033,150 @@ server_module_heatmap <- function(id, module_ordering) {
         }
     )
 }
+
+server_gene_hub_scores <- function(id) {
+    shiny::moduleServer(
+        id,
+        function(input, output, session) {
+            shiny::observe({
+                score_df <- env$gene_hub_scores()
+                shiny::isolate({
+                    shiny::req(score_df, cancelOutput = TRUE)
+                    score_df <- as.data.frame(score_df)
+                    shiny::req(nrow(score_df) > 0, ncol(score_df) > 0, cancelOutput = TRUE)
+
+                    output$gene_hub_scores_table <- DT::renderDT({
+                        DT::datatable(
+                            score_df,
+                            filter = "top",
+                            rownames = TRUE 
+                        )
+                    })
+
+                    output$download_gene_hub_scores <- shiny::downloadHandler(
+                        filename = function() {
+                            "gene_hub_scores.csv"
+                        },
+                        content = function(file) {
+                            score_df <- env$gene_hub_scores()
+                            shiny::req(score_df, nrow(score_df) > 0)
+                            write.table(score_df, file, sep = ",", quote = FALSE, row.names = TRUE)
+                        }
+                    )
+                })
+            }) %>% shiny::bindEvent(env$gene_hub_scores())
+        }
+    )
+}
+
+server_gene_umap_hubs <- function(id) {
+    shiny::moduleServer(
+        id,
+        function(input, output, session) {
+            module_adjacency <- shiny::reactive({
+                closest_node <- env$closest_node_per_module()
+                used_modules <- input$select_modules
+
+                shiny::isolate({
+                    shiny::req(closest_node, used_modules)
+                    closest_node <- closest_node[used_modules]
+
+                    return(
+                        get_module_transitions(
+                            trajectory_object = env$trajectory_object,
+                            closest_module = closest_node
+                        )
+                    )
+                })
+            })
+
+            hub_genes <- shiny::reactive({
+                used_modules <- input$select_modules
+                n_genes <- input$n_hub_genes
+                score_df <- env$gene_hub_scores()
+
+                shiny::isolate({
+                    shiny::req(used_modules, n_genes, score_df)
+                    score_df$gene <- rownames(score_df)
+                    score_df <- score_df %>%
+                        dplyr::filter(.data$module %in% used_modules) %>%
+                        dplyr::group_by(.data$module) %>%
+                        dplyr::slice_max(order_by = .data$combined_score, n = n_genes) %>%
+                        dplyr::ungroup()
+                    return(score_df)
+                })
+            })
+
+            filtered_module_adjacency <- shiny::reactive({
+                module_adj_matrix <- module_adjacency()
+                gene_adj_matrix <- env$chosen_graph()
+                current_hubs <- hub_genes()
+                perc_nodes <- input$percent_nodes
+                perc_edges <- input$top_edges
+                chosen_modules <- env$chosen_modules()
+
+                shiny::isolate({
+                    shiny::req(module_adj_matrix, gene_adj_matrix, current_hubs, perc_nodes, perc_edges, chosen_modules)
+                    used_modules <- rownames(module_adj_matrix)
+                    return(get_filtered_gene_adjacency(
+                        gene_modules = chosen_modules[used_modules],
+                        module_adjacency = module_adj_matrix,
+                        gene_adjacency = gene_adj_matrix,
+                        hub_genes = current_hubs,
+                        percentage_non_hub_nodes = perc_nodes / 100,
+                        percentage_edges = perc_edges / 100
+                    ))
+                })
+            })
+
+            shiny::observe({
+                fltr_adj <- filtered_module_adjacency()
+                edge_range <- input$edge_range_width
+                edge_alpha <- input$pt_alpha
+                point_size <- input$pt_size
+                legend_size <- input$legend_size
+                text_size <- input$text_size
+                umap_df <- env$chosen_umap()
+                shiny::isolate({
+                    shiny::req(fltr_adj, edge_range, umap_df)
+                    gplot_obj <- plot_gene_hub_umap(
+                        umap_df = umap_df,
+                        filtered_gene_adj = fltr_adj,
+                        edge_weight_range = edge_range,
+                        edge_alpha = edge_alpha,
+                        point_size = point_size,
+                        legend_text_size = legend_size,
+                        node_text_size = text_size
+                    )
+                    output$gene_umap_hubs_plot <- shiny::renderPlot(
+                        height = env$window_dim()[2] / 1.05,
+                        width = env$window_dim()[1] / 1.05,
+                        {
+                            shiny::req(gplot_obj)
+                            print(gplot_obj)
+                        }
+                    )
+
+                    output$download_gene_umap_hubs <- shiny::downloadHandler(
+                        filename = function() {
+                            paste(input$filename_gene_umap_hubs, tolower(input$filetype_gene_umap_hubs), sep = ".")
+                        },
+                        content = function(file) {
+                            ggplot2::ggsave(
+                                filename = file,
+                                plot = gplot_obj,
+                                width = input$width_gene_umap_hubs,
+                                height = input$height_gene_umap_hubs,
+                                units = "in",
+                                dpi = 300
+                            )
+                        }
+                    )
+                })
+            })
+        }
+    )
+}
 #' Server - Gene Module UMAP
 #'
 #' @description Creates the backend interface for the Gene Module UMAP panel
@@ -871,6 +1202,14 @@ server_module_umap <- function(id) {
                     shiny::updateSelectizeInput(
                         session,
                         inputId = "select_modules",
+                        choices = modules_stats$module,
+                        selected = modules_stats$module[modules_stats$is_outlier == "no"],
+                        server = TRUE
+                    )
+
+                    shiny::updateSelectizeInput(
+                        session,
+                        inputId = "gene_umap_hubs-select_modules",
                         choices = modules_stats$module,
                         selected = modules_stats$module[modules_stats$is_outlier == "no"],
                         server = TRUE
@@ -907,7 +1246,6 @@ server_module_umap <- function(id) {
                     inputId = "select_modules",
                     selected = intersect(modules_stats$module, slct_modules)
                 )
-
             }) %>% shiny::bindEvent(input$order_modules)
 
             module_ordering <- shiny::reactive({
@@ -919,6 +1257,8 @@ server_module_umap <- function(id) {
             server_module_pseudotime_expression("gene_modules_pseudotime", module_ordering)
             server_grid_umaps("gene_modules_umap", module_ordering)
             server_module_heatmap("gene_modules_heatmap", module_ordering)
+            server_gene_hub_scores("gene_hub_scores")
+            server_gene_umap_hubs("gene_umap_hubs")
         }
     )
 }
