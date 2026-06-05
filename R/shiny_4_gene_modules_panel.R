@@ -210,7 +210,8 @@ ui_gene_umap_hubs <- function(id) {
                 )
             )
         ),
-        shiny::plotOutput(ns("gene_umap_hubs_plot"), height = "auto")
+        shiny::plotOutput(ns("gene_umap_hubs_plot"), height = "auto"),
+        shiny::plotOutput(ns("graph_module_transition"), height = "auto")
     )
 }
 
@@ -1086,6 +1087,31 @@ server_gene_umap_hubs <- function(id) {
                             trajectory_object = env$trajectory_object,
                             closest_module = closest_node
                         )
+                    )
+                })
+            })
+
+            shiny::observe({
+                mod_adj <- module_adjacency()
+                closest_node <- env$closest_node_per_module()
+                text_size <- input$text_size
+                point_size <- input$pt_size
+                proposed_order <- input$select_modules
+                shiny::isolate({
+                    shiny::req(mod_adj, closest_node, proposed_order)
+                    output$graph_module_transition <- shiny::renderPlot(
+                        height = env$window_dim()[2] / 1.05,
+                        width = env$window_dim()[1] / 1.05,
+                        {
+                            plot_module_transitions(
+                                module_adj_matrix = mod_adj,
+                                closest_module = closest_node,
+                                node_positions = env$trajectory_object$node_positions,
+                                node_label_size = text_size,
+                                node_size = point_size,
+                                start_module = proposed_order[1]
+                            )
+                        }
                     )
                 })
             })
