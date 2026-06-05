@@ -236,7 +236,7 @@ ui_transcription_factor_activity <- function(id) {
             shiny::numericInput(
                 inputId = ns("n_hub_genes_tf_network"),
                 label = "# hub genes to show in TF network",
-                value = 10,
+                value = 2,
                 min = 1,
                 step = 1
             )

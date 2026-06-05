@@ -639,6 +639,7 @@ server_pseudobulk_heatmap <- function(id, metadata_name, module_ordering) {
 }
 
 server_by_cell_heatmap <- function(id, metadata_name, module_ordering) {
+    # TODO would be nice to point out the top x hub genes
     shiny::moduleServer(
         id,
         function(input, output, session) {
