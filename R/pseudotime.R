@@ -237,6 +237,49 @@ custom_pseudotime_ordering <- function(monocle_object,
     return(entire_psd)
 }
 
+get_optimal_pseudotime_range <- function(monocle_object) {
+    trajectory_graph <- monocle_object@principal_graph$UMAP
+    node_degrees <- igraph::degree(trajectory_graph, mode = "all")
+
+    longest_path <- names(igraph::get_diameter(trajectory_graph, directed = FALSE, weights = igraph::E(trajectory_graph)$weight))
+    node_branch_length <- rep(0, length(longest_path))
+    names(node_branch_length) <- longest_path
+    for (i in longest_path) {
+        if (node_degrees[i] <= 2) {
+            next
+        }
+
+        # create a subgraph without the main branch
+        deleted_vertices <- setdiff(longest_path, i)
+        subgraph <- igraph::delete_vertices(trajectory_graph, deleted_vertices)
+        current_distances <- igraph::distances(subgraph, v = i)
+        node_branch_length[i] <- max(current_distances[current_distances != Inf], na.rm = TRUE)
+    }
+
+    # NOTE weighted approach using distances on the UMAP projection
+    # dp_mst <- monocle_object@principal_graph_aux$UMAP$dp_mst
+    # dist_dp_mst <- as.matrix(1 / dist(t(dp_mst)))
+    # edge_list <- igraph::get.edgelist(trajectory_graph)
+    # weights <- apply(edge_list, 1, function(x) {
+    #     dist_dp_mst[x[1], x[2]]
+    # })
+    # igraph::E(trajectory_graph)$weight <- weights
+
+    degree_first_half <- sum(node_branch_length[longest_path[seq_len(length(longest_path) / 2)]])
+    degree_second_half <- sum(node_branch_length[longest_path[seq(length(longest_path) / 2 + 1, length(longest_path))]])
+
+    start_node <- longest_path[length(longest_path)]
+    if (degree_first_half < degree_second_half) {
+        start_node <- longest_path[1]
+    }
+    monocle_object <- monocle3::order_cells(monocle_object, root_pr_nodes = start_node)
+
+    return(list(
+        start_node = start_node,
+        pseudotime = monocle3::pseudotime(monocle_object)
+    ))
+}
+
 #' Recommend a pseudotime ordering
 #' 
 #' @description This function provides a recommendation of a pseudotime ordering
@@ -260,6 +303,8 @@ get_pseudotime_recommendation <- function(monocle_object,
                                           recommendation_criteria = function(pseudotime_values) {
                                             max(pseudotime_values) - min(pseudotime_values)
                                           }) {
+    optimal_range <- get_optimal_pseudotime_range(monocle_object)
+    closest_vertex <- monocle_object@principal_graph_aux$UMAP$pr_graph_cell_proj_closest_vertex
     discrete_groups <- list()
     for (mtd_name in colnames(monocle_object@colData)) {
         if (inherits(monocle_object@colData[[mtd_name]], c("factor", "character"))) {
@@ -282,15 +327,21 @@ get_pseudotime_recommendation <- function(monocle_object,
                 umap_embedding = umap_df,
                 n_points = 5
             )
-            monocle_object <- monocle3::order_cells(monocle_object, root_cells = filtered_cells)
+            filtered_node_ids <- paste0("Y_", closest_vertex[filtered_cells, 1])
+            criteria_value <- sum(filtered_node_ids == optimal_range$start_node) / length(filtered_node_ids)
 
-            criteria_value <- recommendation_criteria(monocle3::pseudotime(monocle_object))
+            # NOTE uncomment if you want to calculate the pseudotime again
+            # monocle_object <- monocle3::order_cells(monocle_object, root_cells = filtered_cells)
+            # criteria_value <- recommendation_criteria(monocle3::pseudotime(monocle_object))
 
             if (is.null(best_criteria) || criteria_value > best_criteria) {
                 best_criteria <- criteria_value
                 recommended_mtd_group <- mtd_group
                 recommended_mtd_name <- mtd_name
-                recommended_pseudotime <- monocle3::pseudotime(monocle_object)
+
+                if (criteria_value == 1) {
+                    break
+                }
             }
         }
     }
@@ -298,6 +349,6 @@ get_pseudotime_recommendation <- function(monocle_object,
     return(list(
         recommended_mtd_name = recommended_mtd_name,
         recommended_mtd_group = recommended_mtd_group,
-        recommended_pseudotime = recommended_pseudotime
+        recommended_pseudotime = optimal_range$pseudotime
     ))
 }
