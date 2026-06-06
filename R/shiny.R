@@ -282,12 +282,18 @@ starlng_write_module_summaries <- function(stb_clust,
 #' @param clustering_parameters A list of parameters that will be passed to the
 #' `clustering_pipeline` function. Consult the documentation of the function for
 #' further details.
+#' @param gene_umap_parameters A list of parameters that will be passed to the
+#' `uwot::umap` function to generate the gene UMAP. Consult the documentation
+#' of the function to obtain the list of parameters.
 #' @param ecc_threshold The threshold applied on the Element-Centric Consistency
 #' (ECC) score to determine if a number of cluster is stable or not. By default,
 #' it is set to 0.9.
 #' @param freq_threshold The threshold applied on the number of times a number
 #' of clusters is obtained after running the `clustering_pipeline` function. By
 #' default, it is set to 30.
+#' @param scale_threshold The threshold applied on the scaled summarised
+#' expression to determine the cell population associated to each gene module.
+#' By default, it is set to 0.5.
 #' @param enrichment_organism The organism used for the enrichment analysis.
 #' @param save_entire_monocle If TRUE, saves the monocle object in the app
 #' folder. This object could be used to perform additional changes to the app
@@ -460,24 +466,6 @@ starlng_write_app_monocle <- function(folder_path,
     verbose_print("Extracting the trajectory information...", verbose)
     trajectory_path <- file.path(folder_path, "trajectory_object.qs2")
     trajectory_object <- get_trajectory_object(monocle_object, "UMAP")
-    # trajectory_ggplot <- monocle3::plot_cells(
-    #     monocle_object,
-    #     cell_size = 0,
-    #     label_roots = FALSE,
-    #     label_leaves = FALSE,
-    #     label_branch_point = FALSE,
-    #     label_cell_groups = FALSE,
-    #     label_principal_points = FALSE
-    # )
-
-    # trajectory_ggplot$layers <- trajectory_ggplot$layers[length(trajectory_ggplot$layers)]
-    # for (other_names in names(trajectory_ggplot)) {
-    #     if (other_names == "layers") {
-    #         next
-    #     }
-
-    #     trajectory_ggplot[[other_names]] <- NULL
-    # }
     qs2::qs_save(trajectory_object, file = trajectory_path)
 
     # metadata object

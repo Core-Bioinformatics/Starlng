@@ -73,6 +73,10 @@ the result of the filtering.
 \code{clustering_pipeline} function. Consult the documentation of the function for
 further details.}
 
+\item{gene_umap_parameters}{A list of parameters that will be passed to the
+\code{uwot::umap} function to generate the gene UMAP. Consult the documentation
+of the function to obtain the list of parameters.}
+
 \item{ecc_threshold}{The threshold applied on the Element-Centric Consistency
 (ECC) score to determine if a number of cluster is stable or not. By default,
 it is set to 0.9.}
@@ -80,6 +84,10 @@ it is set to 0.9.}
 \item{freq_threshold}{The threshold applied on the number of times a number
 of clusters is obtained after running the \code{clustering_pipeline} function. By
 default, it is set to 30.}
+
+\item{scale_threshold}{The threshold applied on the scaled summarised
+expression to determine the cell population associated to each gene module.
+By default, it is set to 0.5.}
 
 \item{enrichment_organism}{The organism used for the enrichment analysis.}
 

@@ -53,8 +53,9 @@ Imports:
     shinyjs,
     shinyWidgets,
     spsComps,
-    tidyr,
     stringr,
+    tidyr,
+    uwot,
     viridis
 Suggests: 
     doFuture,
