@@ -18,8 +18,11 @@ starlng_write_app_monocle(
     = "snn", prune_value = -1, resolutions = list(RBConfigurationVertexPartition =
     seq(from = 0.1, to = 2, by = 0.1), RBERVertexPartition = NULL,
     ModularityVertexPartition = NULL), number_iterations = 5, number_repetitions = 100),
+  gene_umap_parameters = list(min_dist = 0.3, n_neighbors = 30, metric = "cosine",
+    n_components = 2),
   ecc_threshold = 0.9,
   freq_threshold = 30,
+  scale_threshold = 0.5,
   enrichment_organism = "hsapiens",
   save_entire_monocle = TRUE,
   discrete_colours = list(),
