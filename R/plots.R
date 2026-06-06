@@ -136,6 +136,16 @@ plot_umap <- function(umap_embedding,
     is_discrete <- inherits(df$cell_info, c("factor", "character"))
 
     if (is_discrete) {
+        n_unique <- length(unique(df$cell_info))
+        if (n_unique > 200) {
+            df$cell_info <- as.numeric(as.factor(df$cell_info))
+            is_discrete <- FALSE
+        } else if (isFALSE(as.character(n_unique) %in% names(discrete_colors))) {
+            discrete_colors[[as.character(n_unique)]] <- qualpalr::qualpal(n = n_unique)$hex
+        }
+    }
+
+    if (is_discrete) {
         df <- sort_umap_discrete(df, cell_sort_order)
     } else {
         df <- sort_umap_continuous(df, cell_sort_order)
@@ -490,32 +500,32 @@ plot_umap_gene_modules_shiny_2 <- function(module_summaries,
 
     plot_list <- lapply(names(module_summaries), function(gene_module) {
         gc()
-        gplot_obj <- plot_umap(
-            umap_embedding = shiny_env$umap_df,
-            cell_info = module_summaries[[gene_module]],
-            mtd_name = legend_name,
-            cell_sort_order = cell_ordering,
-            scale_values = scale_values,
-            cell_size = cell_size,
-            cell_alpha = cell_alpha,
-            legend_text_size = legend_text_size,
-            axis_text_size = axis_text_size,
-            discrete_colors = list(
-                "1" = "red",
-                "2" = c("gray", "red")
-            ),
-            colourbar_width = 0,
-            continuous_colors = NULL
-        ) + ggplot2::ggtitle(paste("module", gene_module))
+        return(
+            plot_umap(
+                umap_embedding = shiny_env$umap_df,
+                cell_info = module_summaries[[gene_module]],
+                mtd_name = legend_name,
+                cell_sort_order = cell_ordering,
+                scale_values = scale_values,
+                cell_size = cell_size,
+                cell_alpha = cell_alpha,
+                legend_text_size = legend_text_size,
+                axis_text_size = axis_text_size,
+                discrete_colors = list(
+                    "1" = "red",
+                    "2" = c("gray", "red")
+                ),
+                colourbar_width = 0,
+                continuous_colors = NULL
+            ) +
+            plot_trajectory_graph(
+                trajectory_object = shiny_env$trajectory_object,
+                edge_size = trajectory_width,
+                plot_nodes = 0
+            )$layers +
+            ggplot2::ggtitle(paste("module", gene_module))
+        )
 
-        if (is.null(shiny_env$trajectory_gplot)) {
-            return(gplot_obj)
-        }
-
-        traj_layer <- shiny_env$trajectory_gplot$layers[[1]]
-        traj_layer$aes_params$size <- trajectory_width
-        gplot_obj$layers <- c(gplot_obj$layers, traj_layer)
-        return(gplot_obj)
     })
 
     names(plot_list) <- names(module_summaries)

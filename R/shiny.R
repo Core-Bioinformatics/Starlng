@@ -14,6 +14,10 @@ generate_discrete_colours <- function(metadata_df,
         }
 
         n_colors <- length(unique(metadata_df[[mtd_names]]))
+        if (n_colors > 200) {
+            warning("The number of colors for the metadata column ", mtd_names, " is higher than 200. Consider providing a custom color palette for this column or reducing the number of groups.")
+            next
+        }
         max_n_colors <- max(n_colors, max_n_colors)
     }
 
@@ -92,11 +96,6 @@ ui <- shiny::fluidPage(
             ui_module_umap(\"module_umap\")
         ),
         shiny::tabPanel(
-            title = \"Module Enrichment\",
-            value = \"module_enrichment\",
-            ui_module_enrichment(\"module_enrichment\")
-        ),
-        shiny::tabPanel(
             title = \"Pseudotime Ordering\",
             value = \"pseudotime\",
             ui_pseudotime_select_cells(\"pseudotime_select_cells\")
@@ -105,6 +104,11 @@ ui <- shiny::fluidPage(
             title = \"Gene Heatmaps\",
             value = \"gene_heatmaps\",
             ui_module_metadata_heatmap(\"module_metadata_heatmap\")
+        ),
+        shiny::tabPanel(
+            title = \"Functional Assessment\",
+            value = \"functional_assessment\",
+            ui_functional_assessment(\"functional_assessment\")
         ),
         position = \"fixed-top\",
         inverse = TRUE
@@ -120,15 +124,129 @@ server <- function(input, output, session) {
     filtered_genes <- server_gene_umap(\"gene_umap\")
     server_gene_clustering(\"gene_clustering\", filtered_genes)
     server_module_umap(\"module_umap\")
-    server_module_enrichment(\"module_enrichment\")
     server_pseudotime_select_cells(\"pseudotime_select_cells\")
     server_module_metadata_heatmap(\"module_metadata_heatmap\")
+    server_functional_assessment(\"functional_assessment\")
 }
 
 shiny::shinyApp(ui = ui, server = server)
 
     ")
     write(content, file = file_path)
+}
+
+starlng_write_module_summaries <- function(stb_clust,
+                                           folder_path,
+                                           expr_matrix,
+                                           chosen_genes,
+                                           gene_adj_matrix,
+                                           trajectory_object,
+                                           cell_umap_df,
+                                           scale_threshold,
+                                           enrichment_organism = "hsapiens",
+                                           verbose = FALSE) {
+    clusters_path <- file.path(folder_path, "module_summaries.h5")
+    if (file.exists(clusters_path)) {
+        warning("Overwriting existing file. Waiting for 5 seconds...")
+        Sys.sleep(5.5)
+        file.remove(clusters_path)
+    }
+    rhdf5::h5createFile(clusters_path)
+    rhdf5::h5write(names(stb_clust), clusters_path, "all_modules")
+    rhdf5::h5write(chosen_genes, clusters_path, "genes")
+    rhdf5::h5write(scale_threshold, clusters_path, "scale_threshold")
+    rhdf5::h5write("average", clusters_path, "summary_method")
+
+    for (k in names(stb_clust)) {
+        rhdf5::h5createGroup(clusters_path, k)
+
+        # partitions 
+        module_partition <- stb_clust[[k]]$partitions[[1]]$mb
+        names(module_partition) <- chosen_genes
+        module_partition <- module_partition
+        rhdf5::h5write(module_partition, clusters_path, paste0(k, "/clustering"))
+
+        # module summary
+        verbose_print(paste("Calculating module summaries for", k, "modules..."), verbose)
+        module_names <- as.character(seq_len(as.integer(k)))
+        module_summaries_list <- do.call(cbind, lapply(module_names, function(module) {
+            module_genes <- names(module_partition)[module_partition == module]
+            module_expr <- expr_matrix[module_genes, , drop = FALSE]
+            module_summary <- voting_scheme(
+                expression_matrix = module_expr,
+                genes = module_genes,
+                thresh_percentile = 0,
+                thresh_value = 0,
+                n_coexpressed_thresh = 1,
+                summary_function = mean
+            )
+            return(module_summary)
+        }))
+        colnames(module_summaries_list) <- module_names
+        rhdf5::h5createDataset(
+            file = clusters_path,
+            dataset = paste0(k, "/expression_summaries"),
+            dims = dim(module_summaries_list),
+            storage.mode = "double"
+        )
+
+        rhdf5::h5write(module_summaries_list, file = clusters_path, name = paste0(k, "/expression_summaries"))
+
+      
+        # gene hubs
+        genes_per_module <- split(chosen_genes, module_partition)
+        genes_per_module <- genes_per_module[module_names]
+
+        ## convert to list
+        verbose_print(paste("Calculating gene hub statistics for", k, "modules..."), verbose)
+        module_summaries_list <- split(module_summaries_list, col(module_summaries_list))
+        module_summaries_list <- module_summaries_list[module_names]
+        module_weights <- get_per_module_weight(gene_adj_matrix, genes_per_module)
+        rank_df <- get_gene_overlap_stat(
+            expr_matrix = expr_matrix,
+            gene_modules = genes_per_module,
+            module_expr = module_summaries_list,
+            module_expression_threshold = scale_threshold,
+            gene_expression_threshold = 0,
+            gene_expression_percentile = 0.5,
+            scale = TRUE,
+            total_weight = module_weights
+        )
+        rank_df$module <- module_partition[rownames(rank_df)]
+        rank_df <- rank_df[chosen_genes, ]
+
+        rhdf5::h5write(rank_df, file = clusters_path, name = paste0(k, "/gene_hub_stats"))
+
+        # module adjacency
+        verbose_print(paste("Infer the module adjacency for", k, "modules..."), verbose)
+        closest_module <- get_closest_node_to_module(
+            trajectory_object = trajectory_object,
+            cell_umap = cell_umap_df,
+            module_expr = module_summaries_list,
+            expression_threshold = scale_threshold,
+            scale = TRUE)
+        closest_module <- closest_module[module_names]
+        rhdf5::h5write(closest_module, file = clusters_path, name = paste0(k, "/closest_nodes_to_module"))
+
+        module_adjacency <- get_module_transitions(trajectory_object, closest_module, start_node = NULL)
+        rhdf5::h5write(module_adjacency, file = clusters_path, name = paste0(k, "/module_adjacency"))
+
+        # tfs
+        verbose_print(paste("Performing identification of transcription factors for", k, "modules..."), verbose)
+        tfs <- get_transcription_factors(
+            gene_list = genes_per_module,
+            organism = enrichment_organism,
+            p_value_threshold = 0.05,
+            correction_method = "fdr",
+            bg_genes = rownames(expr_matrix)
+        )
+        tf_stats <- get_tf_stats(tfs, include_intersection_set = TRUE)
+
+        rhdf5::h5write(tf_stats, file = clusters_path, name = paste0(k, "/tfs"))
+
+        rhdf5::h5write(module_names, file = clusters_path, name = paste0(k, "/modules"))
+    }
+    on.exit(rhdf5::h5closeAll())
 }
 
 #' Create Starlng Shiny app from Monocle object
@@ -239,8 +357,15 @@ starlng_write_app_monocle <- function(folder_path,
                                   "number_iterations" = 5,
                                   "number_repetitions" = 100
                               ),
+                              gene_umap_parameters = list(
+                                "min_dist" = 0.3,
+                                "n_neighbors" = 30,
+                                "metric" = "cosine",
+                                "n_components" = 2
+                              ),
                               ecc_threshold = 0.9,
                               freq_threshold = 30,
+                              scale_threshold = 0.5,
                               enrichment_organism = "hsapiens",
                               save_entire_monocle = TRUE,
                               discrete_colours = list(),
@@ -253,7 +378,7 @@ starlng_write_app_monocle <- function(folder_path,
     if (!dir.exists(folder_path)) {
         dir.create(folder_path, recursive = TRUE, showWarnings = FALSE)
     }
-    if (verbose) print("Writing app.R...")
+    verbose_print("Creating app.R file...", verbose)
     starlng_write_app_file(file.path(folder_path, "app.R"), app_title_name, enrichment_organism = enrichment_organism)
     folder_path <- file.path(folder_path, "objects")
     if (!dir.exists(folder_path)) {
@@ -269,6 +394,14 @@ starlng_write_app_monocle <- function(folder_path,
         mtd_value[is.na(mtd_value)] <- "N/A"
         mtd_value <- factor(mtd_value)
 
+        if (nlevels(mtd_value) == nrow(monocle_object@colData)) {
+            monocle_object@colData[[mtd_column]] <- NULL
+            next
+        }
+        if (nlevels(mtd_value) > 200) {
+            mtd_value <- as.numeric(mtd_value)
+        }
+
         monocle_object@colData[[mtd_column]] <- mtd_value
     }
 
@@ -280,19 +413,20 @@ starlng_write_app_monocle <- function(folder_path,
 
     mon_path <- file.path(folder_path, "monocle_object.qs2")
     if (save_entire_monocle) {
-        if (verbose) print("Writing the monocle object...")
+        verbose_print("Writing the monocle object...", verbose)
         qs2::qs_save(monocle_object, file = mon_path, nthreads = nthreads)
     }
 
     # recommended pseudotime
-    if (verbose) print("Writing the recommended pseudotime...")
+    verbose_print("Writing the recommended pseudotime...", verbose)
     psd_path <- file.path(folder_path, "recommended_pseudotime.qs2")
+    # TODO improve the pseudotime recomm
     psd_values <- get_pseudotime_recommendation(monocle_object)
     qs2::qs_save(psd_values, file = psd_path)
     gc()
 
     # autocorrelation object
-    if (verbose) print("Writing the gene info table...")
+    verbose_print("Writing the gene info table...", verbose)
     info_gene_path <- file.path(folder_path, "genes_info.csv")
     autocorr_result <- monocle3::graph_test(
         monocle_object,
@@ -323,30 +457,31 @@ starlng_write_app_monocle <- function(folder_path,
     utils::write.csv(autocorr_result, file = info_gene_path)
 
     # trajectory ggplot object
-    if (verbose) print("Writing the trajectory ggplot object...")
-    trajectory_path <- file.path(folder_path, "trajectory_ggplot.qs2")
-    trajectory_ggplot <- monocle3::plot_cells(
-        monocle_object,
-        cell_size = 0,
-        label_roots = FALSE,
-        label_leaves = FALSE,
-        label_branch_point = FALSE,
-        label_cell_groups = FALSE,
-        label_principal_points = FALSE
-    )
+    verbose_print("Extracting the trajectory information...", verbose)
+    trajectory_path <- file.path(folder_path, "trajectory_object.qs2")
+    trajectory_object <- get_trajectory_object(monocle_object, "UMAP")
+    # trajectory_ggplot <- monocle3::plot_cells(
+    #     monocle_object,
+    #     cell_size = 0,
+    #     label_roots = FALSE,
+    #     label_leaves = FALSE,
+    #     label_branch_point = FALSE,
+    #     label_cell_groups = FALSE,
+    #     label_principal_points = FALSE
+    # )
 
-    trajectory_ggplot$layers <- trajectory_ggplot$layers[length(trajectory_ggplot$layers)]
-    for (other_names in names(trajectory_ggplot)) {
-        if (other_names == "layers") {
-            next
-        }
+    # trajectory_ggplot$layers <- trajectory_ggplot$layers[length(trajectory_ggplot$layers)]
+    # for (other_names in names(trajectory_ggplot)) {
+    #     if (other_names == "layers") {
+    #         next
+    #     }
 
-        trajectory_ggplot[[other_names]] <- NULL
-    }
-    qs2::qs_save(trajectory_ggplot, file = trajectory_path)
+    #     trajectory_ggplot[[other_names]] <- NULL
+    # }
+    qs2::qs_save(trajectory_object, file = trajectory_path)
 
     # metadata object
-    if (verbose) print("Writing the metadata object...")
+    verbose_print("Writing the metadata object...", verbose)
     metadata_path <- file.path(folder_path, "metadata.qs2")
     mtd_df <- as.data.frame(monocle_object@colData)
     mtd_df$pseudotime <- psd_values$recommended_pseudotime[rownames(mtd_df)]
@@ -354,7 +489,7 @@ starlng_write_app_monocle <- function(folder_path,
     qs2::qs_save(mtd_df, file = metadata_path)
     
     # diet monocle object
-    if (verbose) print("Writing the diet monocle object...")
+    verbose_print("Writing the diet monocle object...", verbose)
     mon_path <- file.path(folder_path, "diet_monocle_object.qs2")
     monocle_object <- diet_monocle_object(monocle_object)
     gc()
@@ -363,9 +498,8 @@ starlng_write_app_monocle <- function(folder_path,
     # gene clustering
     skip_clustering <- length(clustering_parameters) == 0
     if (!skip_clustering) {
-        if (verbose) print("Applying clustering and stability assessment...")
+        verbose_print("Applying clustering and stability assessment...", verbose)
         assess_path <- file.path(folder_path, "full_stability_assessment.qs2")
-        clusters_path <- file.path(folder_path, "stable_modules.csv")
 
         clustering_parameters[["merge_identical_partitions"]] <- TRUE
         chosen_genes <- gene_filtering_function(autocorr_result)
@@ -390,29 +524,49 @@ starlng_write_app_monocle <- function(folder_path,
             parallel::stopCluster(par_cluster)
             foreach::registerDoSEQ()
         }
-        if (verbose) print("Writing clustering results...")
+        verbose_print("Writing clustering results...", verbose)
 
         qs2::qs_save(clust_results, file = assess_path, nthreads = nthreads)
-        best_config <- select_best_configuration(clust_results)
+        best_config <- select_best_configuration(clust_results$clusters_list)
         message("Best configuration: n_neigh - ", best_config[[1]], ", quality function - ", best_config[[2]])
         qs2::qs_save(best_config, file = file.path(folder_path, "best_configuration.qs2"))
-        clust_results <- clust_results[[best_config[[1]]]][[best_config[[2]]]]
+        selected_embedding <- clust_results$embedding_list
+        selected_embedding$adj_matrix <- selected_embedding$adj_matrix[[as.character(best_config[[1]])]]
+        gene_umap_parameters$X <- selected_embedding$embedding
+        set.seed(42)
+        selected_embedding$umap <- as.data.frame(do.call(
+            uwot::umap,
+            gene_umap_parameters
+        ))
+        colnames(selected_embedding$umap) <- c("UMAP_1", "UMAP_2")
+        qs2::qs_save(selected_embedding, file = file.path(folder_path, "gene_embedding.qs2"), nthreads = nthreads)
+
+        clust_results <- clust_results$clusters_list[[best_config[[1]]]][[best_config[[2]]]]
 
         stb_clust <- ClustAssess::choose_stable_clusters(
             clust_results$k,
             ecc_threshold = ecc_threshold,
             freq_threshold = freq_threshold
         )
-        stb_df <- data.frame(genes = chosen_genes)
-        for (k in names(stb_clust)) {
-            stb_df[[paste0("stable_modules_", k)]] <- factor(stb_clust[[k]]$partitions[[1]]$mb)
-        }
 
-        utils::write.csv(stb_df, file = clusters_path, row.names = FALSE, quote = FALSE)
+        if (!is.null(stb_clust)) {
+            starlng_write_module_summaries(
+                stb_clust = stb_clust,
+                folder_path = folder_path,
+                expr_matrix = expr_matrix,
+                chosen_genes = chosen_genes,
+                gene_adj_matrix = selected_embedding$adj_matrix,
+                trajectory_object = trajectory_object,
+                cell_umap_df = mtd_df[, c(ncol(mtd_df) - 1, ncol(mtd_df))],
+                scale_threshold = scale_threshold,
+                enrichment_organism = enrichment_organism,
+                verbose = verbose
+            )
+        }
     }
 
     # expression matrix
-    if (verbose) print("Writing the expression matrix...")
+    verbose_print("Writing the expression matrix...", verbose)
     expr_path <- file.path(folder_path, "expression.h5")
     # write_gene_matrix_sparse_h5(
     write_gene_matrix_dense_h5(
@@ -424,7 +578,7 @@ starlng_write_app_monocle <- function(folder_path,
     )
 
     # colours object
-    if (verbose) print("Writing the colours object...")
+    verbose_print("Writing the colours object...", verbose)
     colour_path <- file.path(folder_path, "colours.qs2")
     colour_list <- list(
         "discrete" = generate_discrete_colours(
@@ -513,7 +667,7 @@ starlng_write_app_default <- function(folder_path,
                               compression_level = 7,
                               chunk_size = 100,
                               nthreads = 1) {
-    if (verbose) print("Creating the monocle object...")
+    verbose_print("Creating the monocle object...", verbose)
     monocle_object <- ClustAssess::create_monocle_default(
         normalized_expression_matrix = expression_matrix,
         metadata_df = metadata_df,
@@ -633,7 +787,7 @@ starlng_write_app_clustassess <- function(folder_path,
                                   compression_level = 7,
                                   chunk_size = 100,
                                   nthreads = 1) {
-    if (verbose) print("Creating the monocle object...")
+    verbose_print("Creating the monocle object...", verbose)
     monocle_object <- ClustAssess::create_monocle_from_clustassess(
         normalized_expression_matrix = expression_matrix,
         metadata_df = metadata_df,
@@ -750,7 +904,7 @@ starlng_write_app_clustassess_app <- function(folder_path,
                                       compression_level = 7,
                                       chunk_size = 100,
                                       nthreads = 1) {
-    if (verbose) print("Creating the monocle object...")
+    verbose_print("Creating the monocle object...", verbose)
     monocle_object <- ClustAssess::create_monocle_from_clustassess_app(
         app_folder = ca_app_folder,
         stable_feature_type = stable_feature_type,

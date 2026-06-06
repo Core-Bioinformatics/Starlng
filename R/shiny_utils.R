@@ -233,6 +233,7 @@ mad_z_score <- function(x) {
     return(z_scores)
 }
 
+# TODO you should work a bit more on improving this function
 detect_outlier <- function(modules_stats, cell_masks, thresh_psd_good, thresh_psd_bad) {
     modules_stats <- modules_stats %>% dplyr::arrange(.data$iqr_pseudotime, .data$median_umap_distance)
     non_eligible <- c()

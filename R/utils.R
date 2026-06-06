@@ -24,3 +24,10 @@ scale_min_max <- function(x) {
 
     return((x - min_val) / (max_val - min_val))
 }
+
+verbose_print <- function(message_str, verbose = TRUE) {
+    if (verbose) {
+        print(paste0("[", Sys.time(), "] ", message_str))
+    }
+    flush.console()
+}
