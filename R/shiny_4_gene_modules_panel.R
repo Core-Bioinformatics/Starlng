@@ -521,7 +521,7 @@ server_module_table_prepare <- function(id, parent_session) {
                     if (condition_loading) {
                         env$gene_hub_scores(score_df)
                         env$closest_node_per_module(
-                            setNames(
+                            stats::setNames(
                                 rhdf5::h5read(
                                     file = file.path("objects", "module_summaries.h5"),
                                     name = paste0(n_modules, "/closest_nodes_to_module")
@@ -533,7 +533,7 @@ server_module_table_prepare <- function(id, parent_session) {
                             )
                         )
                     } else {
-                        module_ordering <- setNames(score_df$module, rownames(score_df))
+                        module_ordering <- stats::setNames(score_df$module, rownames(score_df))
                         score_df <- do.call(rbind, lapply(names(module_summ), function(module_name) {
                             get_gene_overlap_stat(
                                 expr_matrix = read_gene_from_dense_h5(
@@ -546,7 +546,7 @@ server_module_table_prepare <- function(id, parent_session) {
                                 module_expr = module_mask[module_name, ],
                                 gene_expression_percentile = 0.5,
                                 scale = FALSE,
-                                total_weight = setNames(score_df$total_weight, rownames(score_df))
+                                total_weight = stats::setNames(score_df$total_weight, rownames(score_df))
                             )
                         }))
                         score_df$module <- module_ordering[rownames(score_df)]
@@ -556,7 +556,7 @@ server_module_table_prepare <- function(id, parent_session) {
                             cell_umap = env$umap_df,
                             module_expr = lapply(names(module_summ), function(module_name) {
                                     module_mask[module_name, ]
-                                }) %>% setNames(names(module_summ)),
+                                }) %>% stats::setNames(names(module_summ)),
                         )
                         env$closest_node_per_module(closest_node_per_module)
                     }
@@ -966,7 +966,6 @@ server_module_heatmap <- function(id, module_ordering) {
 
                     if (min(htmp_matrix, na.rm = TRUE) == max(htmp_matrix, na.rm = TRUE)) {
                         col_scheme <- "gray"
-                        print("??")
                     }
 
                     ComplexHeatmap::Heatmap(
@@ -1061,7 +1060,7 @@ server_gene_hub_scores <- function(id) {
                         content = function(file) {
                             score_df <- env$gene_hub_scores()
                             shiny::req(score_df, nrow(score_df) > 0)
-                            write.table(score_df, file, sep = ",", quote = FALSE, row.names = TRUE)
+                            utils::write.table(score_df, file, sep = ",", quote = FALSE, row.names = TRUE)
                         }
                     )
                 })
@@ -1074,12 +1073,15 @@ server_gene_umap_hubs <- function(id) {
     shiny::moduleServer(
         id,
         function(input, output, session) {
+            module_ordering <- shiny::reactive({
+                input$select_modules
+            }) %>% shiny::debounce(3000)
             module_adjacency <- shiny::reactive({
                 closest_node <- env$closest_node_per_module()
-                used_modules <- input$select_modules
+                used_modules <- module_ordering()
 
                 shiny::isolate({
-                    shiny::req(closest_node, used_modules)
+                    shiny::req(closest_node, used_modules, all(used_modules %in% names(closest_node)), cancelOutput = TRUE)
                     closest_node <- closest_node[used_modules]
 
                     return(
@@ -1096,7 +1098,7 @@ server_gene_umap_hubs <- function(id) {
                 closest_node <- env$closest_node_per_module()
                 text_size <- input$text_size
                 point_size <- input$pt_size
-                proposed_order <- input$select_modules
+                proposed_order <- module_ordering()
                 shiny::isolate({
                     shiny::req(mod_adj, closest_node, proposed_order)
                     output$graph_module_transition <- shiny::renderPlot(
@@ -1117,7 +1119,7 @@ server_gene_umap_hubs <- function(id) {
             })
 
             hub_genes <- shiny::reactive({
-                used_modules <- input$select_modules
+                used_modules <- module_ordering()
                 n_genes <- input$n_hub_genes
                 score_df <- env$gene_hub_scores()
 
@@ -1276,7 +1278,7 @@ server_module_umap <- function(id) {
 
             module_ordering <- shiny::reactive({
                 input$select_modules
-            }) %>% shiny::debounce(4000)
+            }) %>% shiny::debounce(3000)
 
             shiny::observeEvent(shiny::req(module_ordering()), env$trigger4(TRUE))
 

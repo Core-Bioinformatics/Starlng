@@ -161,13 +161,13 @@ ui_module_enrichment <- function(id) {
 ui_transcription_factor_activity <- function(id) {
     ns <- shiny::NS(id)
     shiny::tagList(
-        shiny::h3("Activity Table"),
+        shiny::h3("TF Activity Table"),
         DT::dataTableOutput(ns("tf_activity_table"), width = "100%"),
         shiny::downloadButton(
             outputId = ns("download_tf_activity_table"),
             label = "Download TF activity table as CSV"
         ),
-        shiny::h3("Activity Heatmap"),
+        shiny::h3("TF Activity Heatmap"),
         shiny::splitLayout(
             cellWidths = c("40px", "40px", "300px", "300px", "300px"),
             shinyWidgets::dropdownButton(
@@ -323,7 +323,6 @@ ui_functional_assessment <- function(id) {
     shiny::tagList(
         shiny::h2("Transcription factor activity", id = ns("tf_activity_panel")),
         ui_transcription_factor_activity(ns("tf_activity")),
-        shiny::h2("Enrichment analysis", id = ns("enrichment_panel")),
         ui_module_enrichment(ns("module_enrichment"))
     )
 }
@@ -378,7 +377,7 @@ server_module_enrichment <- function(id) {
                 names(module_list) <- selected_modules
                 if (n_top_genes > 1) {
                     for (i in seq_along(module_list)) {
-                        module_list[[i]] <- head(module_list[[i]], n_top_genes)
+                        module_list[[i]] <- utils::head(module_list[[i]], n_top_genes)
                     }
                 }
 
