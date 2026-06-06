@@ -29,5 +29,5 @@ verbose_print <- function(message_str, verbose = TRUE) {
     if (verbose) {
         print(paste0("[", Sys.time(), "] ", message_str))
     }
-    flush.console()
+    utils::flush.console()
 }

@@ -976,7 +976,7 @@ plot_module_tfs_ggraph <- function(
     igraph::E(module_tf_g)$edge_width <- ifelse(edge_type == "tf-tf", edge_width * 4, edge_width)
 
     if (exclude_non_hub_genes) {
-        module_tf_g <- igraph::delete_vertices(module_tf_g, igraph::V(module_tf_g)[type == "gene" & !is_hub_gene])
+        module_tf_g <- igraph::delete_vertices(module_tf_g, igraph::V(module_tf_g)[.data$type == "gene" & !.data$is_hub_gene])
     }
 
     layout_df <- ggraph::create_layout(module_tf_g, layout = "stress")
