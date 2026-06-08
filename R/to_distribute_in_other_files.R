@@ -205,7 +205,6 @@ plot_module_transitions <- function(
         start_module <- names(degree_modules)[which.min(degree_modules)][1]
     }
     g_modules <- igraph::graph_from_adjacency_matrix(module_adj_matrix, mode = "undirected")
-    layout <- igraph::layout_as_tree(g_modules, root = start_module)
 
     ggraph::ggraph(g_modules, layout = "tree", root = start_module) +
         ggraph::geom_edge_link(edge_width = edge_size, edge_alpha = edge_alpha, edge_colour = edge_colour) +
@@ -483,7 +482,11 @@ plot_gene_hub_umap <- function(
 
     if (is.null(module_colours)) {
         n_modules <- length(used_modules)
-        module_colours <- qualpalr::qualpal(n_modules, list(h = c(0, 360), s = c(0.2, 0.8), l = c(0.4, 0.65)))$hex
+        if (n_modules == 1) {
+            module_colours <- "blue"
+        } else {
+            module_colours <- qualpalr::qualpal(n_modules, list(h = c(0, 360), s = c(0.2, 0.8), l = c(0.4, 0.65)))$hex
+        }
         names(module_colours) <- as.character(used_modules)
     }
     module_colours[["inter"]] <- edge_colour
@@ -787,6 +790,9 @@ get_transcription_factors <- function(
 }
 
 get_tf_stats <- function(transcription_factors, module_name = NULL, include_intersection_set = FALSE) {
+    if (is.null(transcription_factors) || is.null(transcription_factors$tf_associated_genes) || length(transcription_factors$tf_associated_genes) == 0) {
+        return(NULL)
+    }
     if ("tf_associated_genes" %in% names(transcription_factors)) {
         current_tf_names <- names(transcription_factors$tf_associated_genes)
         tf_stats <- do.call(rbind, lapply(seq_along(transcription_factors$tf_associated_genes), function(i) {
