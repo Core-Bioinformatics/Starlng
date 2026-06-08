@@ -141,7 +141,7 @@ ui_module_enrichment <- function(id) {
             shiny::numericInput(
                 inputId = ns("n_top_enriched_terms"),
                 label = "# top enriched terms per module",
-                value = 10,
+                value = 3,
                 min = 1,
                 step = 1
             ),
@@ -336,19 +336,16 @@ server_module_enrichment <- function(id) {
             shinyjs::hide("run_enrichment")
             shinyjs::hide("download_enrichment")
             shiny::observe({
-                shiny::req(env$chosen_modules())
                 module_summary <- env$modules_stats_summary()
-                ordered_modules <- names(env$chosen_modules())
-                if (!is.null(module_summary) && nrow(module_summary) > 0) {
-                    ordered_modules <- rownames(module_summary)
-                    ordered_modules <- ordered_modules[ordered_modules %in% names(env$chosen_modules())]
-                    ordered_modules <- c(ordered_modules, setdiff(names(env$chosen_modules()), ordered_modules))
-                }
+                shiny::req(module_summary)
+                rownames(module_summary) <- as.character(module_summary$module)
+                ordered_modules <- rownames(module_summary)
+                not_outliers <- rownames(module_summary)[module_summary$is_outlier == "no"]
                 shiny::updateSelectizeInput(
                     session,
                     inputId = "module_enrichment",
                     choices = ordered_modules,
-                    selected = ordered_modules[1],
+                    selected = not_outliers,
                     server = TRUE
                 )
             })
@@ -587,10 +584,14 @@ server_transcription_factor_activity <- function(id) {
                 module_list <- env$chosen_modules()
                 shiny::req(module_list, length(module_list) > 0, cancelOutput = TRUE)
                 nmodules <- length(module_list)
-                tfs <- rhdf5::h5read(
-                    file.path("objects", "module_summaries.h5"),
-                    paste0(nmodules, "/tfs")
-                )
+                tfs <- NULL
+                try({
+                    tfs <- rhdf5::h5read(
+                        file.path("objects", "module_summaries.h5"),
+                        paste0(nmodules, "/tfs")
+                    )
+                }, silent = TRUE)
+                shiny::req(!is.null(tfs), tfs != "NA", cancelOutput = TRUE)
                 tfs$module <- as.character(tfs$module)
                 tfs$tf <- as.character(tfs$tf)
                 tfs$n_genes <- as.integer(tfs$n_genes)
@@ -622,6 +623,7 @@ server_transcription_factor_activity <- function(id) {
                 shiny::req(tfs, nrow(tfs) > 0, cancelOutput = TRUE)
                 module_ordering <- env$modules_stats_summary()
                 shiny::req(module_ordering, cancelOutput = TRUE)
+                rownames(module_ordering) <- as.character(module_ordering$module)
                 module_ordering <- intersect(rownames(module_ordering), unique(tfs$module))
                 tfs$module <- factor(tfs$module, levels = module_ordering)
 
@@ -658,7 +660,7 @@ server_transcription_factor_activity <- function(id) {
                 cap_value_intersection <- input$intersection_size_cap
                 cap_value_hub <- input$hub_size_cap
 
-                shiny::req(selected_modules, n_top_tfs, font_size, point_size_range, cap_value_intersection, cap_value_hub, cancelOutput = TRUE)
+                shiny::req(selected_modules, all(selected_modules %in% unique(tfs$module)), n_top_tfs, font_size, point_size_range, cap_value_intersection, cap_value_hub, cancelOutput = TRUE)
                 tfs <- tfs %>% dplyr::filter(.data$module %in% selected_modules)
                 tfs$module <- factor(tfs$module, levels = selected_modules)
 
@@ -695,11 +697,13 @@ server_transcription_factor_activity <- function(id) {
 
             tf_sub_module_adjacency <- shiny::reactive({
                 tfs <- tf_stats()
+                selected_modules <- input$select_tf_activity_module
                 closest_node <- env$closest_node_per_module()
                 trajectory_obj <- env$trajectory_object
-                shiny::req(tfs, closest_node, trajectory_obj, nrow(tfs) > 0, cancelOutput = TRUE)
+                shiny::req(tfs, selected_modules, all(selected_modules %in% unique(tfs$module)), closest_node, trajectory_obj, nrow(tfs) > 0, cancelOutput = TRUE)
 
-                closest_node <- closest_node[unique(tfs$module)]
+                closest_node <- closest_node[selected_modules]
+                # TODO probably it would be useful to remove cycles and keep the edges between nodes that are closer in terms of the psd median
                 get_module_transitions(
                     trajectory_obj,
                     closest_node

@@ -687,7 +687,6 @@ server_by_cell_heatmap <- function(id, metadata_name, module_ordering) {
                         )
                     )
                     colnames(gene_matrix) <- rownames(env$mtd_df)
-                    print("calling generate cell heatmap")
 
                     htmp_obj <- generate_cell_heatmap(
                         expression_matrix = gene_matrix,
@@ -802,7 +801,7 @@ server_module_metadata_heatmap <- function(id) {
                 mod_summ <- env$modules_stats_summary()
                 shiny::isolate({
                     shiny::req(mod_summ, cancelOutput = TRUE)
-
+                    rownames(mod_summ) <- as.character(mod_summ$module)
                     shiny::updateSelectizeInput(
                         session,
                         inputId = "module_order",

@@ -270,6 +270,209 @@ ui_module_umap <- function(id) {
     )
 }
 
+###### UTILITIES - SERVER #######
+util_load_module_summaries <- function(shiny_env, gene_modules, summ_expr, clustering_type) {
+    summary_function <- switch(
+        summ_expr,
+        "binary" = NULL,
+        "average expressed" = function(x) { mean(x[x > 0]) },
+        "average" = mean,
+        "#genes" = function(x) { sum(x > 0) },
+        NULL
+    )
+    n_modules <- length(gene_modules)
+
+    condition_loading <- clustering_type == "preloaded"
+
+    if (condition_loading) {
+        print(paste(Sys.time(), "Loading precomputed module summaries from HDF5 file."))
+        has_loaded <- FALSE
+        try({
+            module_names <- as.character(rhdf5::h5read(
+                file = file.path("objects", "module_summaries.h5"),
+                name = paste0(n_modules, "/modules")
+            ))
+            summ_list <- rhdf5::h5read(
+                file = file.path("objects", "module_summaries.h5"),
+                name = paste0(n_modules, "/expression_summaries"),
+                index = list(NULL, NULL)
+            )
+            colnames(summ_list) <- module_names
+            rownames(summ_list) <- shiny_env$cells
+            summ_list <- split(summ_list, col(summ_list))
+            print(paste(Sys.time(), "Finished loading precomputed module summaries."))
+            has_loaded <- TRUE
+        }, silent = TRUE)
+        if (has_loaded) {
+            return(summ_list)
+        }
+        warning("Tried to load precomputed module summaries from HDF5 file but they were not found. Recomputing...")
+    } 
+    summ_list <- lapply(names(gene_modules), function(gene_module) {
+        gc()
+        print(paste(Sys.time(), "Processing module:", gene_module))
+        gene_matrix <- read_gene_from_dense_h5(
+            gene_names = gene_modules[[gene_module]],
+            matrix_h5_path = file.path("objects", "expression.h5"),
+            index_genes = shiny_env$genes[gene_modules[[gene_module]]],
+            check_intersect = FALSE
+        )
+
+        return(voting_scheme(
+            expression_matrix = gene_matrix,
+            genes = gene_modules[[gene_module]],
+            thresh_percentile = 0,
+            thresh_value = 0,
+            n_coexpressed_thresh = 1,
+            summary_function = summary_function
+        ))
+    })
+    print(paste(Sys.time(), "Finished processing modules."))
+    names(summ_list) <- names(gene_modules)
+
+    return(summ_list)
+}
+
+util_load_gene_hubs <- function(shiny_env, gene_modules, module_mask, psd_mask, summ_expr, scale_threshold, module_ordering = NULL, condition_loading) {
+    n_modules <- nrow(module_mask)
+    has_loaded <- FALSE
+    try({
+        score_df <- rhdf5::h5read(
+            file = file.path("objects", "module_summaries.h5"),
+            name = paste0(n_modules, "/gene_hub_stats")
+        )
+        rownames(score_df) <- as.character(rhdf5::h5read(
+            file = file.path("objects", "module_summaries.h5"),
+            name = "genes"
+        ))
+        for (i in seq_len(5)) {
+            score_df[,i] <- as.numeric(score_df[,i])
+        }
+        score_df$module <- as.character(score_df$module)
+        has_loaded <- TRUE
+    }, silent = TRUE)
+
+    if (!has_loaded) {
+        warning("Tried to load precomputed gene hub scores from HDF5 file but they were not found. Recomputing...")
+        condition_loading <- FALSE
+        module_ordering <- rownames(module_mask)
+        total_weight <- get_per_module_weight(shiny_env$chosen_graph(), gene_modules)
+    } else {
+        module_ordering <- stats::setNames(score_df$module, rownames(score_df))
+        total_weight <- stats::setNames(score_df$total_weight, rownames(score_df))
+    }
+
+    if (!condition_loading) {
+        score_df <- do.call(rbind, lapply(rownames(module_mask), function(module_name) {
+            get_gene_overlap_stat(
+                expr_matrix = read_gene_from_dense_h5(
+                    gene_names = gene_modules[[module_name]],
+                    matrix_h5_path = file.path("objects", "expression.h5"),
+                    index_genes = shiny_env$genes[gene_modules[[module_name]]],
+                    check_intersect = FALSE
+                )[, psd_mask, drop = FALSE],
+                gene_modules = gene_modules[[module_name]],
+                module_expr = module_mask[module_name, ],
+                gene_expression_percentile = 0.5,
+                scale = FALSE,
+                total_weight = total_weight
+            )
+        }))
+        score_df$module <- module_ordering[rownames(score_df)]
+    }
+
+    score_df$module <- factor(score_df$module, levels = as.character(seq_len(n_modules)))
+    return(score_df %>% dplyr::arrange(.data$module, dplyr::desc(.data$combined_score)))
+}
+
+util_load_closest_module <- function(shiny_env, module_mask, condition_loading) {
+    if (condition_loading) {
+        has_loaded <- FALSE
+
+        try({
+            closest_node_per_module <- stats::setNames(
+                as.character(rhdf5::h5read(
+                    file = file.path("objects", "module_summaries.h5"),
+                    name = paste0(nrow(module_mask), "/closest_nodes_to_module")
+                )),
+                as.character(rhdf5::h5read(
+                    file = file.path("objects", "module_summaries.h5"),
+                    name = paste0(nrow(module_mask), "/modules")
+                ))
+            )
+            has_loaded <- TRUE
+        }, silent = TRUE)
+        if (has_loaded) {
+            return(closest_node_per_module)
+        }
+        warning("Tried to load precomputed closest nodes to modules from HDF5 file but they were not found. Recomputing...")
+    }
+    closest_node_per_module <- get_closest_node_to_module(
+        trajectory_object = shiny_env$trajectory_object,
+        cell_umap = shiny_env$umap_df,
+        module_expr = lapply(rownames(module_mask), function(module_name) {
+                module_mask[module_name, ]
+            }) %>% stats::setNames(rownames(module_mask)),
+    )
+    return(closest_node_per_module)
+}
+
+util_load_pairwise_tables <- function(module_mask, module_summ, condition_loading) {
+    if (condition_loading) {
+        file_exists <- FALSE
+        try({
+            matrix_list <- list(
+                module_intersect_cells = rhdf5::h5read(
+                    file = file.path("objects", "module_summaries.h5"),
+                    name = paste0(nrow(module_mask), "/module_intersect_cells")
+                ),
+                module_union_cells = rhdf5::h5read(
+                    file = file.path("objects", "module_summaries.h5"),
+                    name = paste0(nrow(module_mask), "/module_union_cells")
+                ),
+                module_spearman_matrix = rhdf5::h5read(
+                    file = file.path("objects", "module_summaries.h5"),
+                    name = paste0(nrow(module_mask), "/module_spearman_matrix")
+                )
+            )
+            file_exists <- TRUE
+        }, silent = TRUE)
+        if (file_exists) {
+            return(matrix_list)
+        }
+        warning("Tried to load precomputed pairwise tables from HDF5 file but they were not found. Recomputing...")
+    }
+    pairwise_tables <- compute_module_pairwise_tables(
+        module_mask = module_mask,
+        module_summ = module_summ
+    )
+    return(pairwise_tables)
+}
+
+util_load_other_table_objects <- function(object_name, object_params, processing_function, condition_loading) {
+    if (condition_loading) {
+        module_object <- NULL
+        try({
+            module_object <- rhdf5::h5read(
+                file = file.path("objects", "module_summaries.h5"),
+                name = object_name
+            )
+        }, silent = TRUE)
+        if (!is.null(module_object)) {
+            return(module_object)
+        }
+        warning(paste("Tried to load", object_name, "from precomputed file but it was not found. Recomputing..."))
+    }
+
+    module_object <- do.call(
+        processing_function,
+        object_params
+    )
+
+    return(module_object)
+}
+
+
 ###### SERVER ######
 server_module_table_prepare <- function(id, parent_session) {
     shiny::moduleServer(
@@ -282,7 +485,7 @@ server_module_table_prepare <- function(id, parent_session) {
                 )
             }) %>% shiny::debounce(3000)
 
-            # read and save the matrices
+            # module summaries
             shiny::observe({
                 gene_modules <- env$chosen_modules()
                 summ_expr <- input$summarise_expr
@@ -290,56 +493,7 @@ server_module_table_prepare <- function(id, parent_session) {
 
                 shiny::isolate({
                     shiny::req(gene_modules, summ_expr, length(gene_modules) > 0)
-                    summary_function <- switch(
-                        summ_expr,
-                        "binary" = NULL,
-                        "average expressed" = function(x) { mean(x[x > 0]) },
-                        "average" = mean,
-                        "#genes" = function(x) { sum(x > 0) },
-                        NULL
-                    )
-                    n_modules <- length(gene_modules)
-
-                    condition_loading <- clustering_type == "preloaded"
-
-                    if (condition_loading) {
-                        print(paste(Sys.time(), "Loading precomputed module summaries from HDF5 file."))
-                        module_names <- as.character(rhdf5::h5read(
-                            file = file.path("objects", "module_summaries.h5"),
-                            name = paste0(n_modules, "/modules")
-                        ))
-                        summ_list <- rhdf5::h5read(
-                            file = file.path("objects", "module_summaries.h5"),
-                            name = paste0(n_modules, "/expression_summaries"),
-                            index = list(NULL, NULL)
-                        )
-                        colnames(summ_list) <- module_names
-                        rownames(summ_list) <- env$cells
-                        summ_list <- split(summ_list, col(summ_list))
-                        print(paste(Sys.time(), "Finished loading precomputed module summaries."))
-                    } else {
-                        summ_list <- lapply(names(gene_modules), function(gene_module) {
-                            gc()
-                            print(paste(Sys.time(), "Processing module:", gene_module))
-                            gene_matrix <- read_gene_from_dense_h5(
-                                gene_names = gene_modules[[gene_module]],
-                                matrix_h5_path = file.path("objects", "expression.h5"),
-                                index_genes = env$genes[gene_modules[[gene_module]]],
-                                check_intersect = FALSE
-                            )
-
-                            return(voting_scheme(
-                                expression_matrix = gene_matrix,
-                                genes = gene_modules[[gene_module]],
-                                thresh_percentile = 0,
-                                thresh_value = 0,
-                                n_coexpressed_thresh = 1,
-                                summary_function = summary_function
-                            ))
-                        })
-                        print(paste(Sys.time(), "Finished processing modules."))
-                        names(summ_list) <- names(gene_modules)
-                    }
+                    summ_list <- util_load_module_summaries(env, gene_modules, summ_expr, clustering_type)
 
                     env$modules_summaries(summ_list)
 
@@ -350,7 +504,6 @@ server_module_table_prepare <- function(id, parent_session) {
                 })
             })
 
-            # 
             shiny::observe({
                 module_summ <- env$modules_summaries_scaled()
                 thresh_vals <- thresholds_reactive()
@@ -360,227 +513,82 @@ server_module_table_prepare <- function(id, parent_session) {
                 gene_modules <- env$chosen_modules()
 
                 shiny::isolate({
-                    perc_cells <- 1 - thresh_vals$top_cells_percent / 100
-                    scale_threshold <- thresh_vals$scale_threshold
-                    shiny::req(perc_cells >= 0, perc_cells <= 1, scale_threshold >= 0, scale_threshold <= 1, !is.null(module_summ), psd_value, clustering_type, summ_expr)
+                    shiny::req(!is.null(module_summ), psd_value, clustering_type, summ_expr, gene_modules)
+
                     psd_mask <- !is.na(psd_value)
-
-                    mask_nrow <- length(module_summ)
-                    mask_ncol <- length(psd_value)
-                    module_mask <- matrix(rep(FALSE, mask_nrow * mask_ncol), nrow = mask_nrow, ncol = mask_ncol)
-                    module_cells_table <- matrix(0, nrow = mask_nrow, ncol = mask_nrow)
-
-                    rownames(module_mask) <- names(module_summ)
-                    rownames(module_cells_table) <- names(module_summ)
-                    colnames(module_cells_table) <- names(module_summ)
-
-                    for (i in seq_along(module_summ)) {
-                        module_mask[i, ] <- (module_summ[[i]] > scale_threshold) & psd_mask
-                        if (sum(module_mask[i, ]) < 5) {
-                            next
-                        }
-                        value_thresh <- stats::quantile(module_summ[[i]][module_mask[i, ]], perc_cells)
-                        mx_val <- max(module_summ[[i]])
-                        if (value_thresh == mx_val) {
-                            value_thresh <- 0.99 * mx_val
-                        }
-                        module_mask[i, ] <- (module_summ[[i]] >= value_thresh) & psd_mask
-                    }
-
-                    if (nrow(module_cells_table) > 1) {
-                        for (i in seq(from = 1, to = nrow(module_cells_table) - 1)) {
-                            for (j in seq(from = i + 1, to = ncol(module_cells_table))) {
-                                ncommon_cells <- sum(module_mask[i, ] & module_mask[j, ])
-                                module_cells_table[i, j] <- ncommon_cells
-                                module_cells_table[j, i] <- ncommon_cells
-                            }
-                        }
-                    }
-
-                    for (i in seq_len(nrow(module_cells_table))) {
-                        unique_cells <- module_mask[i, ] 
-                        for (j in seq(from = 1, to = ncol(module_cells_table))) {
-                            if (i == j) {
-                                next
-                            }
-                            unique_cells <- unique_cells & (!module_mask[j, ])
-                        }
-                        module_cells_table[i, i] <- sum(unique_cells)
-                    }
-
-                    module_spearman_matrix <- matrix(NA, nrow = mask_nrow, ncol = mask_nrow)
-                    module_union_cells <- matrix(0, nrow = mask_nrow, ncol = mask_nrow)
-                    rownames(module_spearman_matrix) <- names(module_summ)
-                    colnames(module_spearman_matrix) <- names(module_summ)
-                    rownames(module_union_cells) <- names(module_summ)
-                    colnames(module_union_cells) <- names(module_summ)
-                    for (i in seq_along(module_summ)) {
-                        for (j in seq_along(module_summ)) {
-                            if (i >= j) {
-                                next
-                            }
-                            
-                            mask1 <- module_mask[i, ]
-                            mask2 <- module_mask[j, ]
-                            united_mask <- mask1 | mask2
-                            expr1 <- module_summ[[i]][united_mask]
-                            expr2 <- module_summ[[j]][united_mask]
-
-                            module_union_cells[i, j] <- sum(united_mask)
-                            module_union_cells[j, i] <- sum(united_mask)
-
-                            if (length(expr1) < 5 || length(expr2) < 5) {
-                                module_spearman_matrix[i, j] <- NA
-                                module_spearman_matrix[j, i] <- NA
-                                next
-                            }
-
-                            sp_val <- suppressWarnings(
-                                stats::cor(expr1, expr2, method = "spearman")
-                            )
-                            sp_val <- round(sp_val, 2)
-                            module_spearman_matrix[i, j] <- sp_val
-                            module_spearman_matrix[j, i] <- sp_val
-                        }
-                    }
-
-                    env$modules_mask(module_mask)
-
-                    modules_stats <- NULL
-                    modules_stats_summary <- NULL
-                    
-                    for (i in seq_along(module_summ)) {
-                        if (sum(module_mask[i, ]) == 0) {
-                            next
-                        }
-                        temp_psd_val <- psd_value[module_mask[i, ]]
-                        if (all(is.na(temp_psd_val))) {
-                            next
-                        }
-                        temp_df <- data.frame(
-                            avg_expression = module_summ[[i]][module_mask[i, ]],
-                            psd_value = temp_psd_val, #psd_value[module_mask[i, ]],
-                            umap_distance = calculate_umap_average_distance(
-                                umap_df = env$umap_df,
-                                selected_cells = which(module_mask[i, ])
-                            )
-                        ) %>% dplyr::filter(!is.na(psd_value))
-                        temp_df$module <- names(module_summ)[i]
-
-                        temp_df_summary <- data.frame(
-                            module = names(module_summ)[i],
-                            n_cells = sum(module_mask[i, ]),
-                            avg_expression = round(mean(temp_df$avg_expression, na.rm = TRUE), 3),
-                            median_pseudotime = round(stats::median(temp_df$psd_value, na.rm = TRUE), 3),
-                            iqr_pseudotime = round(stats::IQR(temp_df$psd_value, na.rm = TRUE), 3),
-                            median_umap_distance = round(stats::median(temp_df$umap_distance, na.rm = TRUE), 3)
-                        )
-
-                        if (is.null(modules_stats)) {
-                            modules_stats <- temp_df
-                            modules_stats_summary <- temp_df_summary
-                        } else {
-                            modules_stats <- rbind(modules_stats, temp_df)
-                            modules_stats_summary <- rbind(modules_stats_summary, temp_df_summary)
-                        }
-                    }
-                    rownames(modules_stats_summary) <- modules_stats_summary$module
-
-                    modules_stats_summary$is_outlier <- "no"
-                    outlier_result <- detect_outlier(
-                        modules_stats = modules_stats_summary,
-                        cell_masks = module_mask,
-                        thresh_psd_good = (stats::quantile(psd_value, 0.95, na.rm = TRUE) - stats::quantile(psd_value, 0.05, na.rm = TRUE)) / 10,
-                        thresh_psd_bad = (stats::quantile(psd_value, 0.95, na.rm = TRUE) - stats::quantile(psd_value, 0.05, na.rm = TRUE)) / 3
-                    )
-                    modules_stats_summary[outlier_result$outliers, "is_outlier"] <- "yes"
-                    modules_stats_summary[outlier_result$non_eligible, "is_outlier"] <- "redundant"
-
-                    modules_stats_summary <- modules_stats_summary %>%
-                        dplyr::arrange(.data$median_pseudotime, .data$iqr_pseudotime, .data$median_umap_distance)
-
-                    # hub scores
-                    n_modules <- length(module_summ)
                     condition_loading <- clustering_type == "preloaded" &
                         rhdf5::h5read(file.path("objects", "module_summaries.h5"), "summary_method") == summ_expr &
                         rhdf5::h5read(file.path("objects", "module_summaries.h5"), "scale_threshold") == thresh_vals$scale_threshold &
                         sum(psd_mask) == length(module_summ[[1]])
-                    score_df <- rhdf5::h5read(
-                        file = file.path("objects", "module_summaries.h5"),
-                        name = paste0(n_modules, "/gene_hub_stats")
+                    module_mask <- build_module_masks(
+                        module_summ = module_summ,
+                        psd_mask = psd_mask,
+                        scale_threshold = thresh_vals$scale_threshold,
+                        top_cells_percent = thresh_vals$top_cells_percent
                     )
-                    rownames(score_df) <- as.character(rhdf5::h5read(
-                        file = file.path("objects", "module_summaries.h5"),
-                        name = "genes"
-                    ))
-                    for (i in seq_len(5)) {
-                        score_df[,i] <- as.numeric(score_df[,i])
-                    }
-                    score_df$module <- as.character(score_df$module)
+                    env$modules_mask(module_mask)
+  
+                    pairwise_tables <- util_load_pairwise_tables(module_mask, module_summ, condition_loading)
 
-                    if (condition_loading) {
-                        env$gene_hub_scores(score_df)
-                        env$closest_node_per_module(
-                            stats::setNames(
-                                rhdf5::h5read(
-                                    file = file.path("objects", "module_summaries.h5"),
-                                    name = paste0(n_modules, "/closest_nodes_to_module")
-                                ),
-                                rhdf5::h5read(
-                                    file = file.path("objects", "module_summaries.h5"),
-                                    name = paste0(n_modules, "/modules")
-                                )
-                            )
-                        )
-                    } else {
-                        module_ordering <- stats::setNames(score_df$module, rownames(score_df))
-                        score_df <- do.call(rbind, lapply(names(module_summ), function(module_name) {
-                            get_gene_overlap_stat(
-                                expr_matrix = read_gene_from_dense_h5(
-                                    gene_names = gene_modules[[module_name]],
-                                    matrix_h5_path = file.path("objects", "expression.h5"),
-                                    index_genes = env$genes[gene_modules[[module_name]]],
-                                    check_intersect = FALSE
-                                )[, psd_mask],
-                                gene_modules = gene_modules[[module_name]],
-                                module_expr = module_mask[module_name, ],
-                                gene_expression_percentile = 0.5,
-                                scale = FALSE,
-                                total_weight = stats::setNames(score_df$total_weight, rownames(score_df))
-                            )
-                        }))
-                        score_df$module <- module_ordering[rownames(score_df)]
+                    env$modules_table_cells(pairwise_tables$module_intersect_cells)
+                    env$modules_union_cells(pairwise_tables$module_union_cells)
+                    env$modules_table_spearman(pairwise_tables$module_spearman_matrix)
 
-                        closest_node_per_module <- get_closest_node_to_module(
-                            trajectory_object = env$trajectory_object,
-                            cell_umap = env$umap_df,
-                            module_expr = lapply(names(module_summ), function(module_name) {
-                                    module_mask[module_name, ]
-                                }) %>% stats::setNames(names(module_summ)),
-                        )
-                        env$closest_node_per_module(closest_node_per_module)
-                    }
-                    score_df$module <- factor(as.character(score_df$module), levels = modules_stats_summary$module)
-                    env$gene_hub_scores(score_df %>% dplyr::arrange(.data$module, dplyr::desc(.data$combined_score)))
+                    modules_stats <- util_load_other_table_objects(
+                        object_name = paste0(length(module_summ), "/modules_stats"),
+                        object_params = list(
+                            module_summ = module_summ,
+                            module_mask = module_mask,
+                            psd_value = psd_value,
+                            umap_df = env$umap_df
+                        ),
+                        processing_function = get_module_stats,
+                        condition_loading = condition_loading
+                    )
+                    
+                    modules_stats_summary <- util_load_other_table_objects(
+                        object_name = paste0(length(module_summ), "/modules_stats_summary"),
+                        object_params = list(
+                            modules_stats = modules_stats,
+                            gene_modules = gene_modules
+                        ),
+                        processing_function = summarise_module_stats,
+                        condition_loading = condition_loading
+                    )
 
-                    env$modules_table_cells(module_cells_table)
-                    env$modules_union_cells(module_union_cells)
-                    env$modules_table_spearman(module_spearman_matrix)
+                    modules_stats_summary <- util_load_other_table_objects(
+                        object_name = paste0(length(module_summ), "/modules_stats_summary"),
+                        object_params = list(
+                            modules_stats_summary = modules_stats_summary,
+                            module_mask = module_mask,
+                            psd_value = psd_value,
+                            umap_dist_threshold = 0.85 * env$umap_median_distance
+
+                        ),
+                        processing_function = annotate_module_outliers,
+                        condition_loading = condition_loading
+                    )
 
                     env$modules_stats(modules_stats)
                     env$modules_stats_summary(modules_stats_summary)
 
-                    # TODO it would be nice to calculate the moran I for each module aggr expression
-                    # you could theoretically do that by replacing first X genes on the monocle obj
-                    # print(str(module_summ))
-                    # copy_mon <- env$mon_obj[seq_along(module_summ), ]
-                    # rownames(copy_mon) <- names(module_summ)
-                    # module_summ <- do.call(rbind, module_summ)
-                    # colnames(module_summ) <- colnames(copy_mon)
-                    # SummarizedExperiment::assay(copy_mon, "counts") <- module_summ
+                    shiny::req(!is.null(modules_stats), !is.null(modules_stats_summary), nrow(modules_stats_summary) > 0)
 
-                    # print(monocle3::graph_test(copy_mon, neighbor_graph = "principal_graph", cores = 1)))
-                    
+                    env$gene_hub_scores(util_load_gene_hubs(
+                        shiny_env = env,
+                        gene_modules = gene_modules,
+                        module_mask = module_mask,
+                        psd_mask = psd_mask,
+                        summ_expr = summ_expr,
+                        scale_threshold = thresh_vals$scale_threshold,
+                        module_ordering = modules_stats_summary$module,
+                        condition_loading = condition_loading
+                    ))
+                    env$closest_node_per_module(util_load_closest_module(
+                        shiny_env = env,
+                        module_mask = module_mask,
+                        condition_loading = condition_loading
+                    ))
                 })
             })
         }
@@ -607,7 +615,7 @@ server_module_table <- function(id) {
                                     )
                                 )
                             ),
-                            colnames = c("module", "n cells", "avg<br>expr", "median<br>psd", "iqr<br>psd", "median<br>UMAP dist", "outlier?"),
+                            colnames = c("module", "n_genes", "n cells", "avg<br>summary", "median<br>psd", "iqr<br>psd", "median<br>UMAP dist", "outlier?"),
                             escape = FALSE,
                             rownames = FALSE
                         ) %>% DT::formatStyle(
@@ -624,6 +632,7 @@ server_module_table <- function(id) {
         }
     )
 }
+
 server_module_pseudotime_expression <- function(id, module_ordering) {
     shiny::moduleServer(
         id,
@@ -632,12 +641,15 @@ server_module_pseudotime_expression <- function(id, module_ordering) {
                 psd_df <- env$modules_stats()
                 wdim <- env$window_dim()
                 md_order <- module_ordering()
+                summary_stat_df <- env$modules_stats_summary()
 
                 shiny::isolate({
                     shiny::req(psd_df, md_order, cancelOutput = TRUE)
                     plt_height <- wdim[2] * 0.5
                     plt_width <- wdim[1] / 0.45
-                    summary_stat_df <- env$modules_stats_summary()
+                    summary_stat_df$module <- as.character(summary_stat_df$module)
+                    psd_df$module <- as.character(psd_df$module)
+                    rownames(summary_stat_df) <- summary_stat_df$module
                     unique_groups <- sort(rownames(summary_stat_df))
                     summary_stat_df <- summary_stat_df[md_order, ]
                     shiny::req(all(md_order %in% unique_groups))
@@ -678,7 +690,7 @@ server_module_pseudotime_expression <- function(id, module_ordering) {
                                 gplot_obj <- gplot_obj +
                                     ggplot2::geom_line(
                                         data = plot_df_small,
-                                        ggplot2::aes(x = .data$psd_value, y = .data$avg_expression, color = .data$module, group = .data$module),
+                                        ggplot2::aes(x = .data$psd_value, y = .data$avg_summary, color = .data$module, group = .data$module),
                                         linewidth = 1.0
                                     )
                             }
@@ -686,7 +698,7 @@ server_module_pseudotime_expression <- function(id, module_ordering) {
                                 gplot_obj <- gplot_obj +
                                     ggplot2::geom_smooth(
                                         data = plot_df_big,
-                                        ggplot2::aes(x = .data$psd_value, y = .data$avg_expression, color = .data$module, group = .data$module),
+                                        ggplot2::aes(x = .data$psd_value, y = .data$avg_summary, color = .data$module, group = .data$module),
                                         method = "loess",
                                         se = FALSE,
                                         linewidth = 1.0
@@ -695,7 +707,7 @@ server_module_pseudotime_expression <- function(id, module_ordering) {
                             gplot_obj +
                                 ggplot2::scale_color_manual(values = discrete_colours) +
                                 ggplot2::theme_classic() +
-                                ggplot2::labs(x = "Pseudotime", y = "Expression") +
+                                ggplot2::labs(x = "Pseudotime", y = "Summary") +
                                 ggplot2::theme(
                                     legend.position = "bottom",
                                     axis.text = ggplot2::element_text(size = 16),
@@ -889,13 +901,15 @@ server_module_heatmap <- function(id, module_ordering) {
                 shiny::req(mod_ord)
                 dist_matrix <- env$modules_table_cells()
                 union_tab <- env$modules_union_cells()
-                shiny::req(dist_matrix, union_tab, all(mod_ord %in% rownames(dist_matrix)), identical(rownames(dist_matrix), rownames(union_tab)))
+                shiny::req(dist_matrix, union_tab, all(mod_ord %in% rownames(dist_matrix)), identical(rownames(dist_matrix), rownames(union_tab), length(mod_ord) > 1))
                 shiny::req(nrow(dist_matrix) > 1, nrow(union_tab) > 1)
                 for (i in seq_len(nrow(dist_matrix))) {
                     union_tab[i, i] <- dist_matrix[i, i]
                 }
 
                 dist_matrix <- 1 - dist_matrix[mod_ord, mod_ord, drop = FALSE] / union_tab[mod_ord, mod_ord, drop = FALSE]
+
+                shiny::req(nrow(dist_matrix) > 1)
 
                 for (i in mod_ord) {
                     for (j in mod_ord) {
@@ -912,10 +926,11 @@ server_module_heatmap <- function(id, module_ordering) {
                 shiny::req(mod_ord)
                 dist_matrix <- env$modules_table_spearman()
                 shiny::req(dist_matrix, all(mod_ord %in% rownames(dist_matrix)))
-                shiny::req(nrow(dist_matrix) > 1)
+                shiny::req(nrow(dist_matrix) > 1, length(mod_ord) > 1)
 
                 dist_matrix <- 1 - dist_matrix[mod_ord, mod_ord, drop = FALSE]
                 dist_matrix[is.na(dist_matrix)] <- 100
+                shiny::req(nrow(dist_matrix) > 1)
                 return(stats::hclust(stats::as.dist(dist_matrix), method = "average"))
             })
 
