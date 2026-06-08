@@ -142,6 +142,7 @@ starlng_write_module_summaries <- function(stb_clust,
                                            gene_adj_matrix,
                                            trajectory_object,
                                            cell_umap_df,
+                                           pseudotime_values,
                                            scale_threshold,
                                            enrichment_organism = "hsapiens",
                                            verbose = FALSE) {
@@ -192,15 +193,53 @@ starlng_write_module_summaries <- function(stb_clust,
 
         rhdf5::h5write(module_summaries_list, file = clusters_path, name = paste0(k, "/expression_summaries"))
 
-      
-        # gene hubs
+        # operating on the moduels
         genes_per_module <- split(chosen_genes, module_partition)
         genes_per_module <- genes_per_module[module_names]
 
-        ## convert to list
-        verbose_print(paste("Calculating gene hub statistics for", k, "modules..."), verbose)
         module_summaries_list <- split(module_summaries_list, col(module_summaries_list))
         module_summaries_list <- module_summaries_list[module_names]
+        scaled_module_summaries <- lapply(module_summaries_list, scale_min_max)
+        names(scaled_module_summaries) <- module_names
+
+        psd_mask <- !is.na(pseudotime_values)
+        module_mask <- build_module_masks(
+            module_summ = scaled_module_summaries,
+            psd_mask = psd_mask,
+            scale_threshold = scale_threshold,
+            top_cells_percent = 100
+        )
+
+        ## intersection, union, spearman tables
+        module_pairwise_tables <- compute_module_pairwise_tables(module_mask, scaled_module_summaries)
+        rhdf5::h5write(module_pairwise_tables$module_intersect_cells, file = clusters_path, name = paste0(k, "/module_intersect_cells"))
+        rhdf5::h5write(module_pairwise_tables$module_union_cells, file = clusters_path, name = paste0(k, "/module_union_cells"))
+        rhdf5::h5write(module_pairwise_tables$module_spearman_matrix, file = clusters_path, name = paste0(k, "/module_spearman_matrix"))
+
+        ## modules stats
+        modules_stats <- get_module_stats(
+            module_summ = scaled_module_summaries,
+            module_mask = module_mask,
+            psd_value = pseudotime_values,
+            umap_df = cell_umap_df,
+            centroid = TRUE
+        )
+
+        modules_stats_summary <- summarise_module_stats(
+            modules_stats = modules_stats,
+            gene_modules = genes_per_module
+        )
+
+        modules_stats_summary <- annotate_module_outliers(
+            modules_stats_summary = modules_stats_summary,
+            psd_value = pseudotime_values,
+            module_mask = module_mask
+        )
+        rhdf5::h5write(modules_stats, file = clusters_path, name = paste0(k, "/modules_stats"))
+        rhdf5::h5write(modules_stats_summary, file = clusters_path, name = paste0(k, "/modules_stats_summary"))
+
+        ## convert to list
+        verbose_print(paste("Calculating gene hub statistics for", k, "modules..."), verbose)
         module_weights <- get_per_module_weight(gene_adj_matrix, genes_per_module)
         rank_df <- get_gene_overlap_stat(
             expr_matrix = expr_matrix,
@@ -241,6 +280,10 @@ starlng_write_module_summaries <- function(stb_clust,
             bg_genes = rownames(expr_matrix)
         )
         tf_stats <- get_tf_stats(tfs, include_intersection_set = TRUE)
+
+        if (is.null(tf_stats)) {
+            tf_stats <- "NA"
+        } 
 
         rhdf5::h5write(tf_stats, file = clusters_path, name = paste0(k, "/tfs"))
 
@@ -426,10 +469,8 @@ starlng_write_app_monocle <- function(folder_path,
     # recommended pseudotime
     verbose_print("Writing the recommended pseudotime...", verbose)
     psd_path <- file.path(folder_path, "recommended_pseudotime.qs2")
-    # TODO improve the pseudotime recomm
     psd_values <- get_pseudotime_recommendation(monocle_object)
-    qs2::qs_save(psd_values, file = psd_path)
-    gc()
+
 
     # autocorrelation object
     verbose_print("Writing the gene info table...", verbose)
@@ -475,6 +516,9 @@ starlng_write_app_monocle <- function(folder_path,
     mtd_df$pseudotime <- psd_values$recommended_pseudotime[rownames(mtd_df)]
     mtd_df <- cbind(mtd_df, monocle_object@int_colData$reducedDims$UMAP)
     qs2::qs_save(mtd_df, file = metadata_path)
+    psd_values$umap_median_dist <- median(calculate_umap_average_distance(mtd_df[, c(ncol(mtd_df) - 1, ncol(mtd_df))]))
+    qs2::qs_save(psd_values, file = psd_path)
+    gc()
     
     # diet monocle object
     verbose_print("Writing the diet monocle object...", verbose)
@@ -531,11 +575,27 @@ starlng_write_app_monocle <- function(folder_path,
 
         clust_results <- clust_results$clusters_list[[best_config[[1]]]][[best_config[[2]]]]
 
-        stb_clust <- ClustAssess::choose_stable_clusters(
-            clust_results$k,
-            ecc_threshold = ecc_threshold,
-            freq_threshold = freq_threshold
-        )
+        original_ecc_threshold <- ecc_threshold
+        while (ecc_threshold > 0 && freq_threshold > 0) {
+
+            stb_clust <- ClustAssess::choose_stable_clusters(
+                clust_results$k,
+                ecc_threshold = ecc_threshold,
+                freq_threshold = freq_threshold
+            )
+            if ("1" %in% names(stb_clust)) {
+                stb_clust$"1" <- NULL
+            }
+
+            if (length(stb_clust) > 0) {
+                break
+            }
+            ecc_threshold <- ecc_threshold - 0.05
+            if (ecc_threshold <= 0) {
+                freq_threshold <- freq_threshold - 5
+                ecc_threshold <- original_ecc_threshold
+            }
+        }
 
         if (!is.null(stb_clust)) {
             starlng_write_module_summaries(
@@ -545,6 +605,7 @@ starlng_write_app_monocle <- function(folder_path,
                 chosen_genes = chosen_genes,
                 gene_adj_matrix = selected_embedding$adj_matrix,
                 trajectory_object = trajectory_object,
+                pseudotime_values = mtd_df$pseudotime,
                 cell_umap_df = mtd_df[, c(ncol(mtd_df) - 1, ncol(mtd_df))],
                 scale_threshold = scale_threshold,
                 enrichment_organism = enrichment_organism,
