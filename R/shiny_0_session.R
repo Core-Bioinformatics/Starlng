@@ -142,7 +142,6 @@ prepare_session <- function(parent_session, reactive_dim, height_ratio = 0.7, en
     module_info_path <- file.path("objects", "module_summaries.h5")
     if (file.exists(module_info_path)) {
         n_modules <- rhdf5::h5read(module_info_path, "all_modules")
-        # n_modules <- "4"
         clustered_genes <- as.character(rhdf5::h5read(module_info_path, "genes"))
         pre_stable_modules <- do.call(cbind, lapply(n_modules, function(module) {
             as.integer(rhdf5::h5read(module_info_path, paste0(module, "/clustering")))
@@ -169,6 +168,7 @@ prepare_session <- function(parent_session, reactive_dim, height_ratio = 0.7, en
     assign("added_metadata", shiny::reactiveVal(NULL), envir = env)
     assign("psd_ordering", shiny::reactiveVal(list()), envir = env)
     assign("psd_value", shiny::reactiveVal(env$recommended_psd$recommended_pseudotime), envir = env)
+    assign("umap_median_distance", env$recommended_psd$umap_median_dist, envir = env)
     assign("gene_hub_scores", shiny::reactiveVal(NULL), envir = env)
     assign("closest_node_per_module", shiny::reactiveVal(NULL), envir = env)
     assign("modules_summaries", shiny::reactiveVal(NULL), envir = env)
