@@ -63,6 +63,7 @@ Suggests:
     ggraph,
     ggrepel,
     irlba,
+    mgcv,
     testthat (>= 3.0.0),
     parallel,
     plotly,
