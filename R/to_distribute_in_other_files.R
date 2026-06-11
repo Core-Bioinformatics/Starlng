@@ -1,4 +1,189 @@
 
+plot_module_trends_over_pseudotime <- function(expression_list,
+    pseudotime,
+    module_colours = NULL,
+    linewidth = 1.5,
+    axis_text_size = 10,
+    legend_text_size = 10,
+    label_size = 10,
+    show_labels = TRUE
+) {
+    if (inherits(expression_list, "list")) {
+        module_names <- names(expression_list)
+        df <- do.call(rbind, lapply(module_names, function(module_name) {
+            data.frame(
+                pseudotime = pseudotime,
+                expression = expression_list[[module_name]],
+                module = module_name
+            )
+        }))
+    } else if (inherits(expression_list, c("matrix", "data.frame"))) {
+        module_names <- colnames(expression_list)
+        df <- reshape2::melt(as.data.frame(expression_list), varnames = "module", value.name = "expression")
+
+        df$pseudotime <- rep(pseudotime, each = ncol(expression_list))
+    } else {
+        stop("Unsupported input type for expression_list. Please provide a list of vectors or a matrix/data.frame.")
+    }
+
+    if (isFALSE(all(module_names %in% names(module_colours)))) {
+        module_colours <- NULL
+    }
+    if (is.null(module_colours)) {
+        module_colours <- stats::setNames(qualpalr::qualpal(length(module_names), list(h = c(0, 360), s = c(0.2, 0.8), l = c(0.4, 0.65)))$hex, module_names)
+    }
+    ncells <- length(pseudotime)
+
+    # get the smooth approximation
+    smooth_approx <- df %>%
+        dplyr::group_by(.data$module) %>%
+        dplyr::reframe(pseudotime = seq(min(.data$pseudotime), max(.data$pseudotime), length.out = ncells)) %>%
+        dplyr::group_by(.data$module)
+    if (ncells < 7000) {
+        # use loess
+        smooth_approx <- smooth_approx %>%
+            dplyr::group_modify(~ {
+                module_name <- .y$module
+                module_data <- df[df$module == module_name, ]
+                loess_fit <- stats::loess(expression ~ pseudotime, data = module_data)
+                .x$expression <- stats::predict(loess_fit, newdata = .x)
+                return(.x)
+            })
+    } else {
+        # use gam
+        smooth_approx <- smooth_approx %>%
+            dplyr::group_modify(~ {
+                module_name <- .y$module
+                module_data <- df[df$module == module_name, ]
+                gam_fit <- mgcv::gam(expression ~ s(pseudotime), data = module_data)
+                .x$expression <- stats::predict(gam_fit, newdata = .x)
+                return(.x)
+            })
+    }
+
+    ggplot_obj <- ggplot2::ggplot(df, ggplot2::aes(x = .data$pseudotime, y = .data$expression, color = .data$module, group = .data$module)) +
+        ggplot2::geom_line(data = smooth_approx, linewidth = linewidth) +
+        ggplot2::scale_color_manual(values = module_colours) +
+        ggplot2::theme_minimal() +
+        ggplot2::labs(x = "Pseudotime", y = "Module Expression", color = "Module") +
+        ggplot2::theme(
+            legend.text = ggplot2::element_text(size = legend_text_size),
+            legend.title = ggplot2::element_text(size = legend_text_size),
+            axis.text = ggplot2::element_text(size = axis_text_size),
+            axis.title = ggplot2::element_text(size = axis_text_size),
+            plot.title = ggplot2::element_text(size = label_size)
+        )
+    
+    if (!show_labels) {
+        return(ggplot_obj)
+    }
+
+    text_pos <- smooth_approx %>%
+        dplyr::group_by(.data$module) %>%
+        dplyr::slice_max(order_by = .data$expression, n = 1) %>%
+        dplyr::ungroup() %>%
+        dplyr::select(.data$module, pseudotime_at_max = .data$pseudotime, max_expr = .data$expression) %>%
+        dplyr::mutate(label = .data$module)
+    
+    min_expr <- min(smooth_approx$expression, na.rm = TRUE)
+    max_expr <- max(smooth_approx$expression, na.rm = TRUE)
+
+    return(
+        ggplot_obj +
+            ggplot2::geom_text(data = text_pos, ggplot2::aes(x = .data$pseudotime_at_max, y = .data$max_expr, label = .data$label), size = label_size, vjust = -0.5) +
+            ggplot2::coord_cartesian(ylim = c(min_expr * 0.97, max_expr * 1.1))
+    )
+}
+
+order_metadata_groups_by_pseudotime <- function(
+    metadata_value,
+    pseudotime
+) {
+    grouped_df <- data.frame(
+        mtd = as.character(metadata_value),
+        psd = pseudotime
+    )
+    grouped_df %>%
+        dplyr::group_by(.data$mtd) %>%
+        dplyr::summarise(median_psd = stats::median(.data$psd, na.rm = TRUE)) %>%
+        dplyr::arrange(.data$median_psd) %>%
+        dplyr::pull(.data$mtd)
+}
+
+plot_module_pseudobulk_expression <- function(
+    module_expression_summary,
+    cell_metadata,
+    mtd_order,
+    pseudobulk_function = mean,
+    scale = TRUE,
+    cap_value = 2,
+    axis_text_size = 10,
+    legend_text_size = 10,
+    point_range = c(0.1, 1),
+    continuous_colours = NULL
+) {
+    is_na_mask <- !is.na(cell_metadata)
+    mtd_order <- mtd_order[!is.na(mtd_order)]
+
+    if (!inherits(module_expression_summary, "list")) {
+        module_names <- colnames(module_expression_summary)
+        module_expression_summary <- lapply(module_names, function(module_name) {
+            module_expression_summary[, module_name]
+        })
+        names(module_expression_summary) <- module_names
+        return(plot_module_pseudobulk_expression(module_expression_summary, cell_metadata, mtd_order, scale, cap_value, axis_text_size, legend_text_size, point_range))
+    }
+
+    module_names <- names(module_expression_summary)
+    ncells <- sum(is_na_mask)
+    df <- do.call(rbind, lapply(module_names, function(module_name) {
+        temp_df <- data.frame(
+            expression = module_expression_summary[[module_name]][is_na_mask],
+            mtd = as.character(cell_metadata[is_na_mask])
+        )
+
+        temp_df %>%
+            dplyr::group_by(.data$mtd) %>%
+            dplyr::summarise(
+                psdbk_expr = pseudobulk_function(.data$expression, na.rm = TRUE),
+                perc_expressed = sum(.data$expression > 0, na.rm = TRUE) / ncells,
+                module = module_name
+            )
+    }))
+    df$mtd <- factor(df$mtd, levels = mtd_order)
+    df$module <- factor(df$module, levels = module_names)
+
+    if (is.null(continuous_colours)) {
+        continuous_colours = c("#313695", "#4575B4", "#74ADD1", "#ABD9E9", "#E0F3F8",
+            "#FFFFBF", "#FEE090", "#FDAE61", "#F46D43", "#D73027", "#A50026")
+    }
+
+    colour_limits <- c(0, cap_value)
+    if (scale) {
+        # scale values to mimick t(scale(t(psd_matrix)))
+        df <- df %>%
+            dplyr::group_by(.data$module) %>%
+            dplyr::mutate(psdbk_expr = scale(.data$psdbk_expr)) %>%
+            dplyr::ungroup()
+        colour_limits <- c(-cap_value, cap_value)
+    }
+
+    return(
+        ggplot2::ggplot(df, ggplot2::aes(y = .data$mtd, x = .data$module, color = .data$psdbk_expr, size = .data$perc_expressed)) +
+            ggplot2::geom_point() +
+            ggplot2::theme_classic() +
+            ggplot2::labs(x = "Module", y = "Metadata Group", color = "Pseudobulk\nExpression", size = "Percentage\nExpressed") +
+            ggplot2::scale_color_gradientn(colors = continuous_colours, limits = colour_limits) +
+            ggplot2::theme(
+                legend.text = ggplot2::element_text(size = legend_text_size),
+                legend.title = ggplot2::element_text(size = legend_text_size),
+                axis.text = ggplot2::element_text(size = axis_text_size),
+                axis.title = ggplot2::element_text(size = axis_text_size)
+            )
+    )
+}
+
+
 #### get the pseudotime trajectory  ####
 get_trajectory_object <- function(monocle_object, reduction_name = "UMAP") {
     if (is.null(reduction_name) ||!(reduction_name %in% names(monocle_object@principal_graph))) {
@@ -128,7 +313,8 @@ get_module_centroid <- function(module_expr, cell_umap, expression_threshold = 0
 get_module_transitions <- function(
     trajectory_object,
     closest_module,
-    start_node = NULL
+    start_node = NULL,
+    similarity_values = NULL
 ) {
     if (is.null(start_node)) {
         start_node <- trajectory_object$node_positions %>%
@@ -184,13 +370,44 @@ get_module_transitions <- function(
         }
     }
 
+    if (is.null(similarity_values) || isFALSE(all(module_names %in% rownames(similarity_values)))) {
+        return(module_adj_matrix)
+    }
+
+    # remove triangles by deleting edge of most distant modules
+    while (TRUE) {
+        g <- igraph::graph_from_adjacency_matrix(module_adj_matrix, mode = "undirected")
+        triangles <- igraph::triangles(g)
+        if (length(triangles) == 0) {
+            break
+        }
+        for (i in seq(1, length(triangles), by = 3)) {
+            tri_nodes <- triangles[i:(i+2)]
+            tri_node_names <- names(igraph::V(g))[tri_nodes]
+            tri_similarities <- similarity_values[tri_node_names, ]
+            distance_sims <- as.matrix(stats::dist(tri_similarities))
+
+            max_sim <- max(distance_sims, na.rm = TRUE)
+            if (max_sim == 0) {
+                max_sim_node1 <- tri_node_names[1]
+                max_sim_node2 <- tri_node_names[2]
+            } else {
+                max_sim_indices <- which(distance_sims == max_sim, arr.ind = TRUE)[1, ]
+                max_sim_node1 <- tri_node_names[max_sim_indices[1]]
+                max_sim_node2 <- tri_node_names[max_sim_indices[2]]
+            }
+
+            module_adj_matrix[max_sim_node1, max_sim_node2] <- 0
+            module_adj_matrix[max_sim_node2, max_sim_node1] <- 0
+        }
+    }
+
     return(module_adj_matrix)
 }
 
 plot_module_transitions <- function(
     module_adj_matrix,
     closest_module,
-    node_positions,
     start_module = NULL,
     edge_size = 0.5,
     edge_alpha = 0.5,
@@ -501,15 +718,17 @@ plot_gene_hub_umap <- function(
     }
     hub_df <- umap_df[umap_df$is_hub, , drop = FALSE]
 
-    filtered_gene_adj$edges_df$x <- umap_df[filtered_gene_adj$edges_df$from, "UMAP_1"]
-    filtered_gene_adj$edges_df$y <- umap_df[filtered_gene_adj$edges_df$from, "UMAP_2"]
-    filtered_gene_adj$edges_df$xend <- umap_df[filtered_gene_adj$edges_df$to, "UMAP_1"]
-    filtered_gene_adj$edges_df$yend <- umap_df[filtered_gene_adj$edges_df$to, "UMAP_2"]
+    umap_columns <- colnames(umap_df)[1:2]
+
+    filtered_gene_adj$edges_df$x <- umap_df[filtered_gene_adj$edges_df$from, umap_columns[1]]
+    filtered_gene_adj$edges_df$y <- umap_df[filtered_gene_adj$edges_df$from, umap_columns[2]]
+    filtered_gene_adj$edges_df$xend <- umap_df[filtered_gene_adj$edges_df$to, umap_columns[1]]
+    filtered_gene_adj$edges_df$yend <- umap_df[filtered_gene_adj$edges_df$to, umap_columns[2]]
 
     gplot_obj <- ggplot2::ggplot() +
         ggplot2::geom_segment(data = filtered_gene_adj$edges_df, ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend, linewidth = .data$weight, color = .data$module_assigned), alpha = edge_alpha) +
-        ggplot2::geom_point(data = umap_df[!umap_df$is_hub, , drop = FALSE], ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, color = .data$module), size = point_size, alpha = 0.85) +
-        ggplot2::geom_point(data = hub_df, ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, color = .data$module), size = point_size * hub_point_scale, shape = 21, stroke = hub_stroke, fill = "white") +
+        ggplot2::geom_point(data = umap_df[!umap_df$is_hub, , drop = FALSE], ggplot2::aes(x = .data[[umap_columns[1]]], y = .data[[umap_columns[2]]], color = .data$module), size = point_size, alpha = 0.85) +
+        ggplot2::geom_point(data = hub_df, ggplot2::aes(x = .data[[umap_columns[1]]], y = .data[[umap_columns[2]]], color = .data$module), size = point_size * hub_point_scale, shape = 21, stroke = hub_stroke, fill = "white") +
         ggplot2::scale_color_manual(values = module_colours) +
         ggplot2::scale_linewidth_continuous(range = edge_weight_range) +
         ggplot2::theme_void() +
@@ -525,7 +744,7 @@ plot_gene_hub_umap <- function(
             gplot_obj <- gplot_obj +
                 ggrepel::geom_label_repel(
                     data = hub_df,
-                    ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, label = .data$gene, color = .data$module),
+                    ggplot2::aes(x = .data[[umap_columns[1]]], y = .data[[umap_columns[2]]], label = .data$gene, color = .data$module),
                     size = node_text_size,
                     fill = ggplot2::alpha("white", 0.85),
                     label.size = 0.15,
@@ -539,7 +758,7 @@ plot_gene_hub_umap <- function(
             gplot_obj <- gplot_obj +
                 ggplot2::geom_text(
                     data = hub_df,
-                    ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, label = .data$gene, color = .data$module),
+                    ggplot2::aes(x = .data[[umap_columns[1]]], y = .data[[umap_columns[2]]], label = .data$gene, color = .data$module),
                     size = node_text_size,
                     fontface = "bold",
                     vjust = -0.8
@@ -784,16 +1003,22 @@ get_transcription_factors <- function(
             tf_associated_genes[[duplicate]] <- NULL
         }
     }
+    for (tf in names(tf_associated_genes)) {
+        tf_associated_genes[[tf]] <- unique(tf_associated_genes[[tf]])
+    }
     result$tf_associated_genes <- tf_associated_genes
 
     return(result)
 }
 
 get_tf_stats <- function(transcription_factors, module_name = NULL, include_intersection_set = FALSE) {
-    if (is.null(transcription_factors) || is.null(transcription_factors$tf_associated_genes) || length(transcription_factors$tf_associated_genes) == 0) {
+    if (is.null(transcription_factors)) {
         return(NULL)
     }
     if ("tf_associated_genes" %in% names(transcription_factors)) {
+        if( is.null(transcription_factors$tf_associated_genes) || length(transcription_factors$tf_associated_genes) == 0) {
+            return(NULL)
+        }
         current_tf_names <- names(transcription_factors$tf_associated_genes)
         tf_stats <- do.call(rbind, lapply(seq_along(transcription_factors$tf_associated_genes), function(i) {
             genes <- transcription_factors$tf_associated_genes[[i]]
@@ -842,6 +1067,13 @@ get_tf_gene_network <- function(
         warning("No transcription factors available for plotting.")
         return(invisible(NULL))
     }
+    modules_from_tfs <- unique(tf_stats$module)
+    modules_from_adj <- colnames(module_adjacency)
+    common_modules <- intersect(modules_from_tfs, modules_from_adj)
+
+    tf_stats <- tf_stats %>%
+        dplyr::filter(.data$module %in% common_modules)
+    module_adjacency <- module_adjacency[common_modules, common_modules, drop = FALSE]
 
     top_tfs <- tf_stats %>%
         dplyr::group_by(.data$module) %>%

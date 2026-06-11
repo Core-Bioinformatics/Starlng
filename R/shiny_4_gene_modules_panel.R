@@ -282,7 +282,8 @@ util_load_module_summaries <- function(shiny_env, gene_modules, summ_expr, clust
     )
     n_modules <- length(gene_modules)
 
-    condition_loading <- clustering_type == "preloaded"
+    condition_loading <- clustering_type == "preloaded" &
+        rhdf5::h5read(file.path("objects", "module_summaries.h5"), "summary_method") == summ_expr
 
     if (condition_loading) {
         print(paste(Sys.time(), "Loading precomputed module summaries from HDF5 file."))
@@ -527,7 +528,13 @@ server_module_table_prepare <- function(id, parent_session) {
                         top_cells_percent = thresh_vals$top_cells_percent
                     )
                     env$modules_mask(module_mask)
-  
+
+                    module_centroids <- get_module_centroid(
+                        split(module_mask, row(module_mask)),
+                        cell_umap = env$umap_df
+                    )
+                    env$modules_centroids(module_centroids)
+
                     pairwise_tables <- util_load_pairwise_tables(module_mask, module_summ, condition_loading)
 
                     env$modules_table_cells(pairwise_tables$module_intersect_cells)
@@ -793,7 +800,7 @@ server_grid_umaps <- function(id, module_ordering) {
                 # module_summ <- env$modules_summaries()
                 module_summ <- env$modules_summaries_scaled()
                 patch_ncol <- input$n_columns
-                summarise_expr <- input$summarise_expr
+                summarise_expr <- input$summarise_expr # NOTE we should refer to the parent's environment
                 module_mask <- env$modules_mask()
                 selected_modules <- module_ordering()
 
@@ -821,10 +828,9 @@ server_grid_umaps <- function(id, module_ordering) {
                     pl_res <- plot_umap_gene_modules_shiny_2(
                         module_summaries = module_summ[selected_modules],
                         shiny_env = env,
-                        legend_detail = summarise_expr,
+                        legend_detail = paste0("\n", summarise_expr),
                         n_columns = patch_ncol,
-                        # scale_values = input$settings_scale,
-                        scale_values = FALSE,
+                        scale_values = input$settings_scale,
                         trajectory_width = input$settings_trajectory_width,
                         cell_sort_order = input$settings_pt_order,
                         cell_size = input$settings_pt_size,
@@ -1094,15 +1100,17 @@ server_gene_umap_hubs <- function(id) {
             module_adjacency <- shiny::reactive({
                 closest_node <- env$closest_node_per_module()
                 used_modules <- module_ordering()
+                module_centroid <- env$modules_centroids()
 
                 shiny::isolate({
-                    shiny::req(closest_node, used_modules, all(used_modules %in% names(closest_node)), cancelOutput = TRUE)
+                    shiny::req(closest_node, used_modules, all(used_modules %in% names(closest_node)), module_centroid, cancelOutput = TRUE)
                     closest_node <- closest_node[used_modules]
 
                     return(
                         get_module_transitions(
                             trajectory_object = env$trajectory_object,
-                            closest_module = closest_node
+                            closest_module = closest_node,
+                            similarity_values = module_centroid[used_modules, , drop = FALSE]
                         )
                     )
                 })
@@ -1123,7 +1131,6 @@ server_gene_umap_hubs <- function(id) {
                             plot_module_transitions(
                                 module_adj_matrix = mod_adj,
                                 closest_module = closest_node,
-                                node_positions = env$trajectory_object$node_positions,
                                 node_label_size = text_size,
                                 node_size = point_size,
                                 start_module = proposed_order[1]

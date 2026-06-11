@@ -700,13 +700,15 @@ server_transcription_factor_activity <- function(id) {
                 selected_modules <- input$select_tf_activity_module
                 closest_node <- env$closest_node_per_module()
                 trajectory_obj <- env$trajectory_object
-                shiny::req(tfs, selected_modules, all(selected_modules %in% unique(tfs$module)), closest_node, trajectory_obj, nrow(tfs) > 0, cancelOutput = TRUE)
+                module_centroid <- env$modules_centroids()
+                shiny::req(tfs, selected_modules, all(selected_modules %in% unique(tfs$module)), closest_node, trajectory_obj, module_centroid, nrow(tfs) > 0, cancelOutput = TRUE)
 
                 closest_node <- closest_node[selected_modules]
                 # TODO probably it would be useful to remove cycles and keep the edges between nodes that are closer in terms of the psd median
                 get_module_transitions(
                     trajectory_obj,
-                    closest_node
+                    closest_node,
+                    similarity_values = module_centroid[selected_modules, , drop = FALSE]
                 )
             })
 
