@@ -145,6 +145,7 @@ starlng_write_module_summaries <- function(stb_clust,
                                            pseudotime_values,
                                            scale_threshold,
                                            enrichment_organism = "hsapiens",
+                                           skip_tf_identification = FALSE,
                                            verbose = FALSE) {
     clusters_path <- file.path(folder_path, "module_summaries.h5")
     if (file.exists(clusters_path)) {
@@ -192,6 +193,7 @@ starlng_write_module_summaries <- function(stb_clust,
         )
 
         rhdf5::h5write(module_summaries_list, file = clusters_path, name = paste0(k, "/expression_summaries"))
+        rhdf5::h5write(module_names, file = clusters_path, name = paste0(k, "/modules"))
 
         # operating on the moduels
         genes_per_module <- split(chosen_genes, module_partition)
@@ -271,23 +273,23 @@ starlng_write_module_summaries <- function(stb_clust,
         rhdf5::h5write(module_adjacency, file = clusters_path, name = paste0(k, "/module_adjacency"))
 
         # tfs
-        verbose_print(paste("Performing identification of transcription factors for", k, "modules..."), verbose)
-        tfs <- get_transcription_factors(
-            gene_list = genes_per_module,
-            organism = enrichment_organism,
-            p_value_threshold = 0.05,
-            correction_method = "fdr",
-            bg_genes = rownames(expr_matrix)
-        )
-        tf_stats <- get_tf_stats(tfs, include_intersection_set = TRUE)
+        if (!skip_tf_identification) {
+            verbose_print(paste("Performing identification of transcription factors for", k, "modules..."), verbose)
+            tfs <- get_transcription_factors(
+                gene_list = genes_per_module,
+                organism = enrichment_organism,
+                p_value_threshold = 0.05,
+                correction_method = "fdr",
+                bg_genes = rownames(expr_matrix)
+            )
+            tf_stats <- get_tf_stats(tfs, include_intersection_set = TRUE)
 
-        if (is.null(tf_stats)) {
-            tf_stats <- "NA"
-        } 
+            if (is.null(tf_stats)) {
+                tf_stats <- "NA"
+            } 
 
-        rhdf5::h5write(tf_stats, file = clusters_path, name = paste0(k, "/tfs"))
-
-        rhdf5::h5write(module_names, file = clusters_path, name = paste0(k, "/modules"))
+            rhdf5::h5write(tf_stats, file = clusters_path, name = paste0(k, "/tfs"))
+        }
     }
     on.exit(rhdf5::h5closeAll())
 }
@@ -338,6 +340,8 @@ starlng_write_module_summaries <- function(stb_clust,
 #' expression to determine the cell population associated to each gene module.
 #' By default, it is set to 0.5.
 #' @param enrichment_organism The organism used for the enrichment analysis.
+#' @param skip_tf_identification If FALSE, performs enrichment analysis using
+#' `gprofiler2` to identify transcription factors associated to each module.
 #' @param save_entire_monocle If TRUE, saves the monocle object in the app
 #' folder. This object could be used to perform additional changes to the app
 #' or to continue the downstream analysis. If memory is a concern, set this
@@ -416,6 +420,7 @@ starlng_write_app_monocle <- function(folder_path,
                               freq_threshold = 30,
                               scale_threshold = 0.5,
                               enrichment_organism = "hsapiens",
+                              skip_tf_identification = FALSE,
                               save_entire_monocle = TRUE,
                               discrete_colours = list(),
                               continuous_colours = list(),
@@ -516,7 +521,7 @@ starlng_write_app_monocle <- function(folder_path,
     mtd_df$pseudotime <- psd_values$recommended_pseudotime[rownames(mtd_df)]
     mtd_df <- cbind(mtd_df, monocle_object@int_colData$reducedDims$UMAP)
     qs2::qs_save(mtd_df, file = metadata_path)
-    psd_values$umap_median_dist <- median(calculate_umap_average_distance(mtd_df[, c(ncol(mtd_df) - 1, ncol(mtd_df))]))
+    psd_values$umap_median_dist <- stats::median(calculate_umap_average_distance(mtd_df[, c(ncol(mtd_df) - 1, ncol(mtd_df))]))
     qs2::qs_save(psd_values, file = psd_path)
     gc()
     
@@ -609,6 +614,7 @@ starlng_write_app_monocle <- function(folder_path,
                 cell_umap_df = mtd_df[, c(ncol(mtd_df) - 1, ncol(mtd_df))],
                 scale_threshold = scale_threshold,
                 enrichment_organism = enrichment_organism,
+                skip_tf_identification = skip_tf_identification,
                 verbose = verbose
             )
         }
@@ -667,6 +673,7 @@ starlng_write_app_monocle <- function(folder_path,
 #' @param ecc_threshold Check `starlng_write_app_monocle()` documentation.
 #' @param freq_threshold Check `starlng_write_app_monocle()` documentation.
 #' @param enrichment_organism Check `starlng_write_app_monocle()` documentation.
+#' @param skip_tf_identification Check `starlng_write_app_monocle()` documentation.
 #' @param save_entire_monocle Check `starlng_write_app_monocle()` documentation.
 #' @param discrete_colours Check `starlng_write_app_monocle()` documentation.
 #' @param continuous_colours Check `starlng_write_app_monocle()` documentation.
@@ -708,6 +715,7 @@ starlng_write_app_default <- function(folder_path,
                               ecc_threshold = 0.9,
                               freq_threshold = 30,
                               enrichment_organism = "hsapiens",
+                              skip_tf_identification = FALSE,
                               save_entire_monocle = TRUE,
                               discrete_colours = list(),
                               continuous_colours = list(),
@@ -736,6 +744,7 @@ starlng_write_app_default <- function(folder_path,
         freq_threshold = freq_threshold,
         enrichment_organism = enrichment_organism,
         save_entire_monocle = save_entire_monocle,
+        skip_tf_identification = skip_tf_identification,
         discrete_colours = discrete_colours,
         continuous_colours = continuous_colours,
         max_n_colors = max_n_colors,
@@ -791,6 +800,7 @@ starlng_write_app_default <- function(folder_path,
 #' @param compression_level Check `starlng_write_app_monocle()` documentation.
 #' @param chunk_size Check `starlng_write_app_monocle()` documentation.
 #' @param nthreads Check `starlng_write_app_monocle()` documentation.
+#' @param skip_tf_identification Check `starlng_write_app_monocle()` documentation.
 #'
 #' @export
 starlng_write_app_clustassess <- function(folder_path,
@@ -828,6 +838,7 @@ starlng_write_app_clustassess <- function(folder_path,
                                   ecc_threshold = 0.9,
                                   freq_threshold = 30,
                                   enrichment_organism = "hsapiens",
+                                  skip_tf_identification = FALSE,
                                   save_entire_monocle = TRUE,
                                   discrete_colours = list(),
                                   continuous_colours = list(),
@@ -859,6 +870,7 @@ starlng_write_app_clustassess <- function(folder_path,
         ecc_threshold = ecc_threshold,
         freq_threshold = freq_threshold,
         enrichment_organism = enrichment_organism,
+        skip_tf_identification = skip_tf_identification,
         save_entire_monocle = save_entire_monocle,
         discrete_colours = discrete_colours,
         continuous_colours = continuous_colours,
@@ -902,6 +914,7 @@ starlng_write_app_clustassess <- function(folder_path,
 #' @param ecc_threshold Check `starlng_write_app_monocle()` documentation.`
 #' @param freq_threshold Check `starlng_write_app_monocle()` documentation.`
 #' @param enrichment_organism Check `starlng_write_app_monocle()` documentation.`
+#' @param skip_tf_identification Check `starlng_write_app_monocle()` documentation.`
 #' @param save_entire_monocle Check `starlng_write_app_monocle()` documentation.`
 #' @param discrete_colours Check `starlng_write_app_monocle()` documentation.`
 #' @param continuous_colours Check `starlng_write_app_monocle()` documentation.`
@@ -945,6 +958,7 @@ starlng_write_app_clustassess_app <- function(folder_path,
                                       ecc_threshold = 0.9,
                                       freq_threshold = 30,
                                       enrichment_organism = "hsapiens",
+                                      skip_tf_identification = FALSE,
                                       save_entire_monocle = TRUE,
                                       discrete_colours = list(),
                                       continuous_colours = list(),
@@ -973,6 +987,7 @@ starlng_write_app_clustassess_app <- function(folder_path,
         ecc_threshold = ecc_threshold,
         freq_threshold = freq_threshold,
         enrichment_organism = enrichment_organism,
+        skip_tf_identification = skip_tf_identification,
         save_entire_monocle = save_entire_monocle,
         discrete_colours = discrete_colours,
         continuous_colours = continuous_colours,
