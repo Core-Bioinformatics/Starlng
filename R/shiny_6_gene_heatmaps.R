@@ -390,6 +390,7 @@ server_pseudobulk_heatmap <- function(id, metadata_name, module_ordering) {
                 mtd_name <- metadata_name()
                 summarise_expr <- input$summarise_expr
                 psd_ordering <- env$psd_ordering()
+                clustering_type <- env$clustering_type()
                 # module_ordering <- module_ordering()
                 shiny::isolate({
                     shiny::req(mtd_name, summarise_expr)
@@ -403,22 +404,50 @@ server_pseudobulk_heatmap <- function(id, metadata_name, module_ordering) {
                         NULL
                     )
 
-                    pseudobulk_matrix <- sapply(
-                        current_modules,
-                        function(module) {
-                            cell_info <- voting_scheme(
-                                read_gene_from_dense_h5(
-                                    gene_names = module,
-                                    matrix_h5_path = file.path("objects", "expression.h5"),
-                                    index_genes = env$genes[module],
-                                    check_intersect = FALSE
-                                ),
-                                genes = module,
-                                thresh_percentile = 0,
-                                thresh_value = 0,
-                                n_coexpressed_thresh = 0,
-                                summary_function = summary_function
+                    n_modules <- length(current_modules)
+
+                    condition_loading <- clustering_type == "preloaded" &
+                        rhdf5::h5read(file.path("objects", "module_summaries.h5"), "summary_method") == summarise_expr
+
+                    if (condition_loading) {
+                        successfull_load <- FALSE
+                        try({
+                            module_names <- as.character(rhdf5::h5read(
+                                file = file.path("objects", "module_summaries.h5"),
+                                name = paste0(n_modules, "/modules")
+                            ))
+                            summ_list <- rhdf5::h5read(
+                                file = file.path("objects", "module_summaries.h5"),
+                                name = paste0(n_modules, "/expression_summaries"),
+                                index = list(NULL, NULL)
                             )
+                            colnames(summ_list) <- module_names
+                            rownames(summ_list) <- env$cells
+                            successfull_load <- TRUE
+                        }, silent = TRUE)
+                        condition_loading <- successfull_load && all(names(current_modules) %in% module_names)
+                    }
+
+                    pseudobulk_matrix <- sapply(
+                        names(current_modules),
+                        function(module) {
+                            if (condition_loading) {
+                                cell_info <- summ_list[, module]
+                            } else {
+                                cell_info <- voting_scheme(
+                                    read_gene_from_dense_h5(
+                                        gene_names = current_modules[module],
+                                        matrix_h5_path = file.path("objects", "expression.h5"),
+                                        index_genes = env$genes[current_modules[module]],
+                                        check_intersect = FALSE
+                                    ),
+                                    genes = current_modules[module],
+                                    thresh_percentile = 0,
+                                    thresh_value = 0,
+                                    n_coexpressed_thresh = 0,
+                                    summary_function = summary_function
+                                )
+                            }
 
                             pseudobulk_summary(
                                 mtd_value = env$mtd_df[, mtd_name],
