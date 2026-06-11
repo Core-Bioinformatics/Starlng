@@ -30,7 +30,7 @@ NULL
 #' values for each cell.
 #' @export
 voting_scheme <- function(expression_matrix,
-                          genes,
+                          genes = rownames(expression_matrix),
                           thresh_percentile = 0.25,
                           thresh_value = 0,
                           n_coexpressed_thresh = length(genes),
@@ -39,7 +39,11 @@ voting_scheme <- function(expression_matrix,
         stop("Expression matrix has no row names")
     }
 
-    genes <- intersect(genes, rownames(expression_matrix))
+    if (is.null(genes)) {
+        genes <- rownames(expression_matrix)
+    } else {
+        genes <- intersect(genes, rownames(expression_matrix))
+    }
 
     if (length(genes) == 0) {
         stop("No genes found in the expression matrix")
