@@ -312,7 +312,9 @@ detect_outlier <- function(modules_stats, cell_masks, psd_value, thresh_psd_good
                 percentage_unique = potential_unique_percentage,
                 percentage_iqr = percentage_iqr,
                 f1_score = potential_f1_score,
-                module_iqr = iqr
+                module_iqr = iqr,
+                median_pseudotime = modules_stats$median_pseudotime[i],
+                median_umap_distance = modules_stats$median_umap_distance[i]
             )
             if (is.null(coverage_evolution_df)) {
                 coverage_evolution_df <- new_coverage
@@ -327,7 +329,10 @@ detect_outlier <- function(modules_stats, cell_masks, psd_value, thresh_psd_good
     # although most of their population overlap with other better modules, there's
     # a chance that the specific difference is not covered at all by the other modules
     # allow the module if the percentage of new cells is above 25%
-    threshold_f1_score <- median(coverage_evolution_df$f1_score, na.rm = TRUE)
+    threshold_f1_score <- NULL
+    if (!is.null(coverage_evolution_df)) {
+        threshold_f1_score <- stats::median(coverage_evolution_df$f1_score, na.rm = TRUE)
+    }
 
     for (i in seq_len(nrow(modules_stats))) {
         module_name <- modules_stats$module[i]
@@ -343,7 +348,6 @@ detect_outlier <- function(modules_stats, cell_masks, psd_value, thresh_psd_good
         temp_mask <- covered_mask | current_mask
         nunique <- sum(temp_mask) - sum(covered_mask)
         iqr <- modules_stats$iqr_pseudotime[i]
-        eligible <- TRUE
 
         potential_percentage_unique <- nunique / ncells + 1e-10
         potential_coverage_added <- nunique / length(covered_mask) + 1e-10
@@ -351,28 +355,28 @@ detect_outlier <- function(modules_stats, cell_masks, psd_value, thresh_psd_good
         percentage_iqr <- 1 - 1 / (iqr + 1e-10)
         potential_f1_score <- 2 / (1 / potential_percentage_unique + 1 / potential_coverage_added)# + 1 / percentage_iqr)
 
-        if (potential_f1_score < threshold_f1_score) {
-            eligible <- FALSE
+        if (!is.null(threshold_f1_score) && potential_f1_score < threshold_f1_score) {
+            next
         }
         
-        if (eligible) {
-            outlier_output[module_name] <- "no"
-            new_coverage <- data.frame(
-                added_module = module_name,
-                coverage_added = potential_coverage_added,
-                percentage_unique = potential_percentage_unique,
-                percentage_iqr = percentage_iqr,
-                f1_score = potential_f1_score,
-                module_iqr = iqr
-            )
-            if (is.null(coverage_evolution_df)) {
-                coverage_evolution_df <- new_coverage
-            } else {
-                coverage_evolution_df <- rbind(coverage_evolution_df, new_coverage)
-            }
-            covered_mask <- temp_mask
-            threshold_f1_score <- median(coverage_evolution_df$f1_score, na.rm = TRUE)
+        outlier_output[module_name] <- "no"
+        new_coverage <- data.frame(
+            added_module = module_name,
+            coverage_added = potential_coverage_added,
+            percentage_unique = potential_percentage_unique,
+            percentage_iqr = percentage_iqr,
+            f1_score = potential_f1_score,
+            module_iqr = iqr,
+            median_pseudotime = modules_stats$median_pseudotime[i],
+            median_umap_distance = modules_stats$median_umap_distance[i]
+        )
+        if (is.null(coverage_evolution_df)) {
+            coverage_evolution_df <- new_coverage
+        } else {
+            coverage_evolution_df <- rbind(coverage_evolution_df, new_coverage)
         }
+        covered_mask <- temp_mask
+        threshold_f1_score <- stats::median(coverage_evolution_df$f1_score, na.rm = TRUE)
     }
 
     return(list(
