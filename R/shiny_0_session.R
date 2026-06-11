@@ -174,6 +174,7 @@ prepare_session <- function(parent_session, reactive_dim, height_ratio = 0.7, en
     assign("modules_summaries", shiny::reactiveVal(NULL), envir = env)
     assign("modules_summaries_scaled", shiny::reactiveVal(NULL), envir = env)
     assign("modules_mask", shiny::reactiveVal(NULL), envir = env)
+    assign("modules_centroids", shiny::reactiveVal(NULL), envir = env)
     assign("modules_stats", shiny::reactiveVal(NULL), envir = env)
     assign("modules_stats_summary", shiny::reactiveVal(NULL), envir = env)
     assign("modules_table_cells", shiny::reactiveVal(NULL), envir = env)

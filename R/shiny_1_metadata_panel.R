@@ -76,6 +76,7 @@ server_metadata_umap_panel <- function(id) {
                         cell_size = input$settings_pt_size,
                         cell_alpha = input$settings_pt_alpha,
                         legend_text_size = input$settings_legend_size,
+                        legend_key_size = input$settings_pt_size * 2,
                         axis_text_size = input$settings_axis_size,
                         show_labels = input$settings_labels,
                         label_size = input$settings_text_size,
