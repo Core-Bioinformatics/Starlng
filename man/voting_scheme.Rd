@@ -6,7 +6,7 @@
 \usage{
 voting_scheme(
   expression_matrix,
-  genes,
+  genes = rownames(expression_matrix),
   thresh_percentile = 0.25,
   thresh_value = 0,
   n_coexpressed_thresh = length(genes),

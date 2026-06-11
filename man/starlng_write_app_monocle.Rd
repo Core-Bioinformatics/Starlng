@@ -24,6 +24,7 @@ starlng_write_app_monocle(
   freq_threshold = 30,
   scale_threshold = 0.5,
   enrichment_organism = "hsapiens",
+  skip_tf_identification = FALSE,
   save_entire_monocle = TRUE,
   discrete_colours = list(),
   continuous_colours = list(),
@@ -90,6 +91,9 @@ expression to determine the cell population associated to each gene module.
 By default, it is set to 0.5.}
 
 \item{enrichment_organism}{The organism used for the enrichment analysis.}
+
+\item{skip_tf_identification}{If FALSE, performs enrichment analysis using
+\code{gprofiler2} to identify transcription factors associated to each module.}
 
 \item{save_entire_monocle}{If TRUE, saves the monocle object in the app
 folder. This object could be used to perform additional changes to the app

@@ -26,6 +26,7 @@ starlng_write_app_clustassess_app(
   ecc_threshold = 0.9,
   freq_threshold = 30,
   enrichment_organism = "hsapiens",
+  skip_tf_identification = FALSE,
   save_entire_monocle = TRUE,
   discrete_colours = list(),
   continuous_colours = list(),
@@ -72,6 +73,8 @@ Defaults to TRUE.}
 \item{freq_threshold}{Check \code{starlng_write_app_monocle()} documentation.`}
 
 \item{enrichment_organism}{Check \code{starlng_write_app_monocle()} documentation.`}
+
+\item{skip_tf_identification}{Check \code{starlng_write_app_monocle()} documentation.`}
 
 \item{save_entire_monocle}{Check \code{starlng_write_app_monocle()} documentation.`}
 
