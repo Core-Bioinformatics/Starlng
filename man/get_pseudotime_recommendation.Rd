@@ -4,22 +4,10 @@
 \alias{get_pseudotime_recommendation}
 \title{Recommend a pseudotime ordering}
 \usage{
-get_pseudotime_recommendation(
-  monocle_object,
-  recommendation_criteria = function(pseudotime_values) {
-     max(pseudotime_values) -
-    min(pseudotime_values)
- }
-)
+get_pseudotime_recommendation(monocle_object)
 }
 \arguments{
-\item{monocle_object}{A monocle object.}
-
-\item{recommendation_criteria}{A function that defines the criteria of
-determining the best pseudotime ordering. The function should take the
-pseudotime values as input and return a numeric value. The function should
-be monotonically increasing. Defaults to a function that returns the
-interquartile range.}
+\item{monocle_object}{A Monocle3 object.}
 }
 \value{
 A list that contains the recommended metadata column, the subgroup
@@ -28,8 +16,7 @@ and the pseudotime values.
 \description{
 This function provides a recommendation of a pseudotime ordering
 based on the metadata available in the monocle object. The recommendation is
-done by selecting the subgroup of a metadata column that leads to the highest
-interquartile range of the pseudotime values (or any criteria the user
-provides). This is translated as an ordering that has the highest
-variability.
+done by selecting an end node from the diameter of the trajectory graph. The
+function identifies the metadata group whose centre is the closest to the
+starting point.
 }
