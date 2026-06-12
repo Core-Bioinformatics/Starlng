@@ -20,54 +20,57 @@ A live example of the Starlng Shiny app can be found [here](https://mohorianulab
 
 <!-- `install.packages("Starlng")` -->
 
-or from Github using the `remotes` package:
+Starlng can be installed from Github using the `remotes` package:
 
 `remotes::install_github("Core-Bioinformatics/Starlng")`.
 
 The following packages are required for Starlng:
 
-* circlize
-* ClustAssess
-* ComplexHeatmap
-* dplyr
-* DT
-* foreach
-* ggplot2
-* Gmedian
-* gprofiler2
-* HDF5Array
-* igraph
-* leidenbase
-* Matrix (>= 1.5.0)
-* methods
-* monocle3
-* patchwork
-* qs
-* qs2
-* qualpalr
-* RANN
-* rclipboard
-* reshape2
-* RhpcBLASctl
-* rhdf5
-* shiny
-* shinyjs
-* shinyWidgets
-* spsComps
-* tidyr
-* stringr
+* circlize,
+* ClustAssess,
+* ComplexHeatmap,
+* dplyr,
+* DT,
+* foreach,
+* ggplot2,
+* Gmedian,
+* gprofiler2,
+* HDF5Array,
+* igraph,
+* leidenbase,
+* Matrix (>= 1.5.0),
+* methods,
+* monocle3,
+* patchwork,
+* qs2,
+* qualpalr,
+* RANN,
+* rclipboard,
+* reshape2,
+* RhpcBLASctl,
+* rhdf5,
+* shiny,
+* shinyjs,
+* shinyWidgets,
+* spsComps,
+* stringr,
+* tidyr,
+* uwot,
 * viridis
 
 We suggest installing the following packages for optimal performance:
 
-* doFuture
-* doParallel
-* irlba
-* testthat (>= 3.0.0)
-* parallel
-* plotly
+* doFuture,
+* doParallel,
+* ggraph,
+* ggrepel,
+* irlba,
+* mgcv,
+* testthat (>= 3.0.0),
+* parallel,
+* plotly,
+* SeuratData,
 * SharedObject
-
 
 ## Citing Starlng
 To be added.
