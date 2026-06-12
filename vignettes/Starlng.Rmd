@@ -1,35 +1,35 @@
 ---
-title: "Applying Starlng on single-cell data"
+title: "Introduction to the Starlng package"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Applying Starlng on single-cell data}
+  %\VignetteIndexEntry{Introduction to the Starlng package}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
----
+--- 
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-    collapse = TRUE,
-    comment = "#>"
-)
-set.seed(1001)
-```
 
-In this vignette we will demonstrate how to apply the main Starlng function to single-cell RNA-seq data. We will exemplify this on the PBMC3k dataset.
-
-```{r libraries}
+```{r libraries, message=FALSE, warning=FALSE}
+library(ClustAssess)
 library(Starlng)
+library(monocle3)
 library(Seurat)
 library(SeuratData)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+```
 
-print(packageVersion("Starlng"))
+# Presenting the Data
+In this vignette we will demonstrate how to apply the main Starlng functionalities to single-cell RNA-seq data. We will exemplify this on the PBMC3k dataset.
+```{r install_pbmc3k, message=FALSE, warning=FALSE}
+InstallData("pbmc3k")
+data("pbmc3k")
+
+n_cores <- 4
 ```
 
 We repeated the procedures of downloading, qc filtering, normalising and dimensionality reduction as described in the `ClustAssess` [vignette](https://github.com/Core-Bioinformatics/ClustAssess/blob/main/vignettes/stability-pipeline-description.Rmd).
-
-```{r install_pbmc_rna}
-InstallData("pbmc3k")
-data("pbmc3k")
+```{r basic_seurat_processing, message=FALSE, warning=FALSE}
 pbmc3k <- UpdateSeuratObject(pbmc3k)
 pbmc3k <- PercentageFeatureSet(pbmc3k, pattern = "^MT-", col.name = "percent.mito")
 pbmc3k <- PercentageFeatureSet(pbmc3k, pattern = "^RP[SL][[:digit:]]", col.name = "percent.rp")
@@ -37,15 +37,25 @@ all.index <- seq_len(nrow(pbmc3k))
 MT.index <- grep(pattern = "^MT-", x = rownames(pbmc3k), value = FALSE)
 RP.index <- grep(pattern = "^RP[SL][[:digit:]]", x = rownames(pbmc3k), value = FALSE)
 pbmc3k <- pbmc3k[!((all.index %in% MT.index) | (all.index %in% RP.index)), ]
-pbmc3k <- subset(pbmc3k, nFeature_RNA < 2000 & nCount_RNA < 2500 & percent.mito < 7 & percent.rp > 7)
+pbmc3k <- subset(
+    pbmc3k,
+    nFeature_RNA < 2000 & nCount_RNA < 2500 &
+    percent.mito < 7 & percent.rp > 7
+)
 pbmc3k <- NormalizeData(pbmc3k, verbose = FALSE)
-pbmc3k <- FindVariableFeatures(pbmc3k, selection.method = "vst", nfeatures = 3000, verbose = FALSE)
+pbmc3k <- FindVariableFeatures(
+    pbmc3k,
+    selection.method = "vst",
+    nfeatures = 3000,
+    verbose = FALSE
+)
 pbmc3k <- ScaleData(pbmc3k, features = rownames(pbmc3k), verbose = FALSE)
 pbmc3k <- RunPCA(pbmc3k,
     npcs = 30,
     approx = FALSE,
     verbose = FALSE
 )
+set.seed(42)
 pbmc3k <- RunUMAP(pbmc3k,
     reduction = "pca",
     dims = 1:30,
@@ -54,30 +64,825 @@ pbmc3k <- RunUMAP(pbmc3k,
     metric = "cosine",
     verbose = FALSE
 )
+pbmc3k <- FindNeighbors(pbmc3k, reduction = "pca", dims = 1:30, verbose = FALSE)
+pbmc3k <- FindClusters(pbmc3k, resolution = 1, verbose = FALSE)
 pbmc3k
 ```
 
-Applying `Starlng` is straightforward, using the `starlng_write_app_default()` function. The function requires a normalised expression matrix, a metadata dataframe, a PCA and UMAP embedding. The function allows controlling the number of points used in inferring the pseudotime trajectory (`learn_graph_parameters`), filtering the genes based on autocorrelation (`gene_filtering_function`) and the parameters used in the stability assessment of gene clustering (`clustering_parameters`).
+The cells are already annotated, as shown in the following UMAP. The annotations can be used to confirm the downstream analysis.
+```{r umap_annotations, fig.width=7, fig.height=7}
+DimPlot(pbmc3k, reduction = "umap", group.by = "seurat_annotations")
+```
 
-```{r create_starlng_app, eval = FALSE}
-starlng_write_app_default(
-    folder_path = "starlng_app_pbmc3k",
-    expression_matrix = GetAssayData(pbmc3k, assay = "RNA", slot = "data"),
+# Running Starlng
+## Trajectory Inference and Autocorrelation Scoring
+
+Starlng relies on the main principles from the Monocle3 package. Therefore, the
+first steps consist in converting our object to Monocle3 and apply the first
+processing steps. For conversion, we have used the `create_monocle_default`
+function from the `ClustAssess` package.
+```{r create_monocle_obj, fig.width=7, fig.height=7}
+monocle_obj <- create_monocle_default(
+    normalized_expression_matrix = GetAssayData(pbmc3k, assay = "RNA", layer = "data"),
     metadata_df = pbmc3k@meta.data,
     pca_embedding = Embeddings(pbmc3k, reduction = "pca"),
-    umap_embedding = Embeddings(pbmc3k, reduction = "umap"),
-    app_title_name = "Starlng PBMC3K Example"
+    umap_embedding = Embeddings(pbmc3k, reduction = "umap")
+)
+plot_cells(
+    monocle_obj,
+    color_cells_by = "seurat_annotations",
+    cell_size = 1,
+    group_label_size = 6
 )
 ```
 
-The function will create a Starlng Shiny application in the specified folder. You can run the application using the following command:
+Once the Monocle3 object is created, we apply the SimplePPT algorithm to infer
+the trajectory graph. The method relies on defining a number of center points
+that represent each subpopulation. Monocle3 fixes an adaptive policy defined
+as $15 \cdot \log_10(ncells)$.
+Changing the factor can improve the granularity of the branching, as it can be
+seen in the following comparison. Therefore, Starlng provides an wrapper that
+allows changing this variable.
+```{r impact_nodes_per_log10, fig.width = 8, fig.height = 6}
+n_nodes <- c(10, 30)
+plot_list <- list()
+for (n_node in n_nodes) {
+    monocle_obj <- custom_learn_graph(
+        mon_obj = monocle_obj,
+        nodes_per_log10_cells = n_node,
+        learn_graph_controls = list(
+            eps = 1e-5,
+            maxiter = 100,
+            prune_graph = TRUE
+        ),
+        use_partition = FALSE,
+        use_closed_loops = FALSE
+    )
+    plot_list[[as.character(n_node)]] <- plot_cells(
+        monocle_obj,
+        color_cells_by = "seurat_annotations",
+        cell_size = 1) +
+      ggtitle(paste0("Trajectory inferred on\n", n_node, " per log10(#cells)"))
+}
+wrap_plots(plot_list, ncol = 2)
+```
+## Pseudotime Ordering
 
-```{r run_app, eval = FALSE}
-shiny::runApp("starlng_app_pbmc3k")
+The graph structure allows defining an ordering of the centroid points (and
+subsequently of each cell). Given that the graph is undirected, choosing the
+starting point can be arbitrary. Monocle3's approach is to let the user select
+the root interactively using a ShinyApp.
+Starlng introduces an objective approach that determines the root point that
+maximises the pseudotime range. We justify this objective understanding that
+every minor change between neighbouring subtypes can provide useful insights.
+For this, we determine the diameter of the graph, which will represent the main
+trajectory of the data. We will select the trajectory leaf that belongs to
+the half with a weaker branching effect.
+```{r pseudotime_recommendation}
+trajectory_object <- get_trajectory_object(monocle_obj)
+recommended_pseudotime <- get_pseudotime_recommendation(monocle_obj)
 ```
 
-# Session Info
+Starlng proposes a data-driven way to determine the root point as well. The
+user can utilise either a metadata category or a group of genes (using a voting
+scheme) and apply Starlng to determine a small set of cells that would represent
+the provided population.
+By default, the identification of the optimal pseudotime range is accompanied
+by a recommendation of the metadata group that can be used to obtain a similar
+result. In this case, the CD14+ Mono cells were selected as the most appropriate
+starting point.
+```{r pseudotime_by_metadata, fig.width = 6, fig.height = 6}
+umap_df <- as.data.frame(reducedDims(monocle_obj)$UMAP)
+mtd_df <- colData(monocle_obj)
+umap_df$pseudotime <- recommended_pseudotime$recommended_pseudotime
 
-```{r session_info}
+recommended_mtd_name <- recommended_pseudotime$recommended_mtd_name
+recommended_mtd_group <- recommended_pseudotime$recommended_mtd_group
+mtd_group <- rownames(mtd_df)[mtd_df[[recommended_mtd_name]] == recommended_mtd_group]
+mtd_group <- mtd_group[!is.na(mtd_group)]
+recommended_starting_point <- filter_central_cells_from_group(
+    cell_group = mtd_group,
+    umap_embedding = umap_df[, c("UMAP_1", "UMAP_2")],
+    n_points = 5
+)
+str(recommended_pseudotime)
+ggplot() +
+    geom_point(
+        data = umap_df,
+        aes(x = UMAP_1, y = UMAP_2, color = pseudotime),
+        size = 1, alpha = 0.5) +
+    theme_classic() +
+    scale_color_viridis_c() +
+    geom_point(
+        data = umap_df[recommended_starting_point, ],
+        aes(x = UMAP_1, y = UMAP_2),
+        color = "red", size = 3) +
+    ggtitle("UMAP Colored by Recommended Pseudotime\n
+    (Red cells recommended as Starting Point)") +
+    plot_trajectory_graph(trajectory_object, plot_nodes = 0, edge_size = 1)$layers
+```
+
+## Autocorrelation Scoring
+
+Another use of the trajectory graph is to describe a space that can be further
+utilised to infer autocorrelation patterns of each gene using the Moran's I test.
+```{r graph_test, include=FALSE}
+invisible(capture.output({
+    autocorrelation_result <- monocle3::graph_test(
+        cds = monocle_obj,
+        neighbor_graph = "principal_graph",
+        cores = n_cores,
+        verbose = FALSE
+    )
+}))
+```
+
+```{r graph_test_show, eval=FALSE}
+autocorrelation_result <- monocle3::graph_test(
+    cds = monocle_obj,
+    neighbor_graph = "principal_graph",
+    cores = n_cores,
+    verbose = FALSE
+)
+```
+
+The Moran's I values range between -1 and 1. Values close to 0 reflect a random
+localisation pattern of the cells expressing a gene. Positive values denote that
+cells are clustered in more compact groups.
+The presence of noise, as well as the plasticity of the cells increases the
+difficulty of identifying genes that are well clustered. As it can be observed
+in the following plot, the number of genes decreases exponentially as the Moran's
+I increases.
+```{r moran_i_distribution, fig.width = 6, fig.height=5}
+rownames(autocorrelation_result) <- autocorrelation_result$gene_short_name
+autocorrelation_result <- autocorrelation_result[!is.na(autocorrelation_result$morans_I), ]
+autocorrelation_result <- autocorrelation_result %>%
+    dplyr::select(c("gene_short_name", "morans_test_statistic", "morans_I", "q_value")) %>%
+    dplyr::arrange(dplyr::desc(.data$morans_I))
+
+
+morans_I_bins <- seq(-1, 1, by = 0.05)
+autocorrelation_result$morans_I_bin <- cut(
+    autocorrelation_result$morans_I,
+    breaks = morans_I_bins,
+    include.lowest = TRUE
+)
+autocorrelation_result$morans_I_bin <- as.character(autocorrelation_result$morans_I_bin)
+autocorrelation_counts <- autocorrelation_result %>%
+    group_by(morans_I_bin) %>%
+    summarise(count = n())
+monocle_obj <- monocle_obj[rownames(autocorrelation_result), ]
+
+ggplot(autocorrelation_counts, aes(x = morans_I_bin, y = count)) +
+    geom_histogram(stat = "identity") +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_y_log10() +
+    ylab("Number of Genes (log10)") +
+    ggtitle("Distribution of Moran's I Values")
+
+head(autocorrelation_result)
+```
+
+We define other usual gene statistics, such as average expression, percentage of
+cells expressed. The following scatterplot suggests that these metrics can't
+act as strong predictors of the autocorrelation score.
+```{r add_gene_stats, fig.width = 7, fig.height = 6}
+expr_matrix <- monocle_obj@assays@data$normalized_data
+autocorrelation_result$average_expression <- Matrix::rowMeans(expr_matrix)
+avg_non_zero <- apply(expr_matrix, 1, function(x) mean(x > 0))
+autocorrelation_result$average_expression_non_zero <- avg_non_zero
+autocorrelation_result$n_expressed_cells <- rowSums(expr_matrix > 0)
+perc_cells <- autocorrelation_result$n_expressed_cells / ncol(expr_matrix) * 100
+autocorrelation_result$percent_expressed_cells <- perc_cells
+autocorrelation_result$p_val <- -log10(autocorrelation_result$q_value + 1e-10)
+autocorrelation_result[autocorrelation_result$q_value >= 0.05, "p_val"] <- NA
+
+head(autocorrelation_result)
+
+ggplot(autocorrelation_result, aes(
+    x = average_expression_non_zero,
+    y = morans_I,
+    size = percent_expressed_cells,
+    colour = p_val)) +
+    geom_point() +
+    theme_classic() +
+    xlab("Average Non-Zero Expression") +
+    ylab("Moran's I") +
+    ggtitle("Moran's I vs Average Non-Zero Expression") +
+    scale_colour_viridis_c()
+```
+
+## Identification of Gene Modules
+
+For the following analysis, we will filter the genes based on the significance
+of their autocorrelation patterns. We selected a significance pvalue threshold
+of 0.05 and a Moran's I threshold of 0.1, in an attempt to describe a large
+enough landscape of signal genes. We note that other threshold I values can be
+appropriate and could be investigated in the analysis.
+
+We process the filtered genes by calculating their feature loading after
+performing the Principal Component Analysis at cell level.
+```{r gene_filtering_processing}
+remaining_genes <- autocorrelation_result %>%
+    filter(q_value < 0.05 & morans_I > 0.1, ) %>%
+    rownames()
+gene_loadings <- get_feature_loading(
+    expr_matrix = expr_matrix[remaining_genes, ],
+    npcs = 30, approx = FALSE)
+```
+
+The reduced space is then given as input for the clustering pipeline, which
+follows the PhenoGraph framework (also used by default in Monocle3). Additionally,
+we run the pipeline by varying the number of neighbours (used to infer the gene
+adjacency graph based on neighbourhood overlap) and the resolution parameter
+(which directly impacts the number of resulting clusters). Each configuration
+is run 100 times with different random seed initialisations.
+
+The pipeline can be run in parallel across all platforms, using PSOCK clusters.
+```{r gene_clustering, message=FALSE, warning=FALSE}
+if (n_cores > 1) {
+    cl <- parallel::makePSOCKcluster(n_cores)
+    doParallel::registerDoParallel(cl)
+}
+
+clustering_assessment <- clustering_pipeline(
+    embedding = gene_loadings,
+    n_neighbours = seq(5, 50, by = 5),
+    graph_type = "snn",
+    prune_value = -1,
+    resolutions = list(
+        "RBConfigurationVertexPartition" = seq(from = 0.1, to = 2, by = 0.1)
+    ),
+    number_iterations = 5,
+    number_repetitions = 100,
+    merge_identical_partitions = TRUE
+)
+
+if (n_cores > 1) {
+    parallel::stopCluster(cl)
+    foreach::registerDoSEQ()
+}
+```
+
+We utilise the clustering assessment principles from ClustAssess to infer the
+robustness of results for the different number of nearest neighbours. We use the
+same two-step approach, that firstly keeps the upper half of configurations ordered
+by the median Element-Centric Consistency (ECC) and the selects the configuration
+with the lowest ECC IQR.
+```{r best_nn_clustering, fig.width = 7, fig.height = 5}
+per_n_neigh_ecc <- do.call(rbind,
+    lapply(names(clustering_assessment$clusters_list), function(n_neigh) {
+        x <- clustering_assessment$clusters_list[[n_neigh]]
+        data.frame(
+            ECC = x$RBConfigurationVertexPartition$overall_ecc,
+            n_neighbours = n_neigh
+        )
+}))
+per_n_neigh_ecc$n_neighbours <- factor(
+    per_n_neigh_ecc$n_neighbours,
+    levels = as.character(seq(5, 50, by = 5))
+)
+per_n_neigh_stats <- per_n_neigh_ecc %>%
+    group_by(n_neighbours) %>%
+    summarise(
+        median_ecc = median(ECC),
+        iqr_ecc = IQR(ECC)
+    )
+# lowest median from the first half
+median_threshold <- sort(per_n_neigh_stats$median_ecc)[ceiling(nrow(per_n_neigh_stats) / 2)]
+iqr_text <- per_n_neigh_stats %>%
+    filter(median_ecc >= median_threshold) %>%
+    arrange(iqr_ecc) %>%
+    mutate(
+        iqr_text = paste0("IQR: ", round(iqr_ecc, 3)),
+        text_colour = ifelse(iqr_ecc == min(iqr_ecc), "#519451", "black")
+    )
+max_y <- max(per_n_neigh_ecc$ECC) * 1.01
+
+ggplot(per_n_neigh_ecc, aes(x = n_neighbours, y = ECC)) +
+    geom_boxplot() +
+    theme_classic() +
+    xlab("Number of Neighbours") +
+    ylab("Overall ECC") +
+    geom_hline(yintercept = median_threshold, linetype = "dashed", color = "red") +
+    geom_text(
+        data = iqr_text,
+        aes(x = n_neighbours, y = max_y, label = iqr_text, color = text_colour),
+        vjust = -0.5,
+        size = 3
+    ) +
+    scale_color_identity() +
+    ggtitle("ECC vs Number of Neighbours")
+
+best_configuration <- select_best_configuration(clustering_assessment$clusters_list)
+print(best_configuration)
+```
+
+For this data, the optimal number of nearest neighbours is 20. We fix these
+parameters and calculate the gene UMAP.
+```{r update_gene_umap_and_clusters}
+best_nn <- best_configuration[[1]]
+best_quality <- best_configuration[[2]]
+gene_adj_matrix <- clustering_assessment$embedding_list$adj_matrix[[best_nn]]
+set.seed(42)
+gene_umap <- uwot::umap(
+    gene_loadings,
+    n_neighbors = as.numeric(best_nn),
+    metric = "cosine",
+    n_components = 2,
+    verbose = FALSE
+)
+gene_umap <- as.data.frame(gene_umap)
+colnames(gene_umap) <- paste0("Gene_UMAP_", 1:2)
+
+clusters_list <- clustering_assessment$clusters_list[[best_nn]][[best_quality]]
+```
+
+The last step of the clustering assessment is to infer the number of modules
+that produce similar results across multiple runs. For this, we consider a
+number of gene clusters (defined as modules) to be stable if the average ECC
+score is greater than 0.9 (from a maximum of 1) and if its associated partition
+appear at least 30 times (to ensure a statistically-relevant sample of observations).
+```{r best_n_modules, fig.width = 8, fig.height = 5}
+per_k_ecc <- do.call(rbind, lapply(names(clusters_list$k), function(k) {
+    x <- clusters_list$k[[k]]
+    data.frame(
+        ECC = x$ecc,
+        k = k
+    )
+}))
+per_k_ecc$k <- factor(per_k_ecc$k, levels = names(clusters_list$k))
+average_ecc_per_k <- per_k_ecc %>%
+    group_by(k) %>%
+    summarise(average_ecc = mean(ECC))
+max_y <- max(per_k_ecc$ECC) * 1.03
+average_ecc_per_k$frequency <- sapply(names(clusters_list$k), function(k) { 
+    sum(sapply(clusters_list$k[[k]]$partitions, function(partition) partition$freq))
+})
+average_ecc_per_k_text <- average_ecc_per_k %>%
+    arrange(frequency) %>%
+    filter(average_ecc >= 0.9) %>%
+    mutate(
+        frequency_text = paste0("Freq:\n", frequency),
+        text_colour = ifelse(frequency < 30, "black",  "#519451")
+    )
+
+ggplot(per_k_ecc, aes(x = k, y = ECC)) +
+    geom_boxplot() +
+    geom_point(
+        data = average_ecc_per_k,
+        aes(x = k, y = average_ecc),
+        color = "blue",
+        size = 2, shape = 22) +
+    theme_classic() +
+    xlab("k") +
+    ylab("ECC") +
+    geom_hline(yintercept = 0.9, linetype = "dashed", color = "red") +
+    geom_text(
+        data = average_ecc_per_k_text,
+        aes(x = k, y = max_y, label = frequency_text, color = text_colour),
+        vjust = -0.5,
+        size = 3
+    ) +
+    scale_color_identity() +
+    coord_cartesian(ylim = c(0.15, 1.09))
+    ggtitle("ECC vs k for the Best Configuration")
+
+stable_clusters <- ClustAssess::choose_stable_clusters(
+    clusters_list = clusters_list$k,
+    ecc_threshold = 0.9,
+    freq_threshold = 30,
+    summary_function = mean
+)
+
+print(names(stable_clusters))
+```
+
+We notice that the highest number of modules is 14. We will select this value
+for the following analysis.
+```{r module_selection}
+chosen_n_modules <- names(stable_clusters)[length(stable_clusters)]
+module_names <- as.character(seq_len(chosen_n_modules))
+chosen_clustering <- setNames(
+    stable_clusters[[chosen_n_modules]]$partitions[[1]]$mb,
+    remaining_genes
+)
+module_colours <- setNames(qualpalr::qualpal(length(module_names))$hex, module_names)
+module_list <- split(names(chosen_clustering), chosen_clustering)
+print(summary(factor(chosen_clustering)))
+```
+
+# Module Analysis
+## Voting Scheme
+
+We can determine the population described by each gene module using a voting
+scheme approach. This voting scheme selects the cells that express at least
+`n_coexpressed_thresh` genes above a given threshold (alternative, a percentile
+can be provided to infer a dynamic threshold).
+In this first example, we select all cells that express at least one gene from
+the module. We remark that the voting scheme has been too lenient.
+```{r module_binary_selection, fig.width = 8, fig.height = 16}
+module_binary_voting <- do.call(cbind, lapply(module_names, function(module) {
+    genes_in_module <- names(chosen_clustering)[chosen_clustering == module]
+    if (length(genes_in_module) == 0) {
+        return(rep(NA, ncol(expr_matrix)))
+    }
+    as.character(voting_scheme(
+        expression_matrix = expr_matrix[genes_in_module, , drop = FALSE],
+        thresh_percentile = 0,
+        thresh_value = 0,
+        n_coexpressed_thresh = 1,
+        summary_function = NULL 
+    ))
+}))
+colnames(module_binary_voting) <- module_names
+
+plot_umap_gene_modules(
+    module_summaries = module_binary_voting,
+    umap_embedding = umap_df[, c("UMAP_1", "UMAP_2")],
+    trajectory_object = trajectory_object,
+    n_columns = 3,
+    combine_legend = TRUE,
+    scale_values = FALSE,
+    continuous_colors = cont_colours,
+    show_labels = FALSE,
+    legend_text_size = 20,
+    legend_key_size = 5
+)
+```
+
+The second approach would be to aggregate the expression across all genes belonging
+to one module. For comparability across module, we scale the values between 0
+and 1. This approach reveal clearer patterns for each module.
+```{r module_scaled_average, fig.width=8, fig.height = 16}
+module_avg_expression <- do.call(cbind, lapply(module_names, function(module) {
+    genes_in_module <- names(chosen_clustering)[chosen_clustering == module]
+    if (length(genes_in_module) == 0) {
+        return(rep(NA, ncol(expr_matrix)))
+    }
+    expr_value <- voting_scheme(
+        expression_matrix = expr_matrix[genes_in_module, , drop = FALSE],
+        thresh_percentile = 0,
+        thresh_value = 0,
+        n_coexpressed_thresh = 1,
+        summary_function = mean
+    )
+    (expr_value - min(expr_value)) / (max(expr_value) - min(expr_value))
+}))
+colnames(module_avg_expression) <- module_names
+
+white_red_colours <- c("grey85", "#FFF7EC", "#FEE8C8", "#FDD49E",
+"#FDBB84", "#FC8D59", "#EF6548", "#D7301F", "#B30000", "#7F0000")
+plot_umap_gene_modules(
+    module_summaries = module_avg_expression,
+    umap_embedding = umap_df[, c("UMAP_1", "UMAP_2")],
+    trajectory_object = trajectory_object,
+    n_columns = 3,
+    combine_legend = TRUE,
+    scale_values = TRUE,
+    continuous_colors = white_red_colours,
+    show_labels = FALSE,
+    legend_text_size = 20,
+    colourbar_height = 200,
+    cell_size = 1,
+    cell_sort_order = "highest"
+)
+```
+
+Starlng provides a procedure that identifies the core cells that define the
+module-specific population. For this, we can either use a threshold for the
+scaled values (defaults to 0.5) or a percentage of the top cells, ordered by
+the average expression.
+```{r module_mask}
+scale_threshold <- 0.5
+psd_mask <- !is.na(umap_df$pseudotime)
+module_avg_expression <- split(module_avg_expression, col(module_avg_expression))
+names(module_avg_expression) <- module_names
+module_mask <- build_module_masks(
+    module_summ = module_avg_expression,
+    psd_mask = psd_mask,
+    scale_threshold = scale_threshold,
+    top_cells_percent = 100
+)
+names(module_mask) <- module_names
+```
+
+## Generating Module Statistics
+
+The previously-determined populations can be further used to generated per-module
+stats, such as the position across the pseudotime trajectory, or the average
+UMAP intra-cluster distance.
+```{r module_stats}
+modules_stats <- get_module_stats(
+    module_summ = module_avg_expression,
+    module_mask = module_mask,
+    psd_value = umap_df$pseudotime,
+    umap_df = umap_df[, c("UMAP_1", "UMAP_2")],
+    centroid = TRUE
+)
+modules_stats_summary <- summarise_module_stats(
+    modules_stats = modules_stats,
+    gene_modules = module_list
+)
+head(modules_stats_summary)
+```
+
+Mapping against present metadata
+We can also visualise the overlap between the module-induced populations and
+existing metadata. In the following bubbleplot we notice that some modules
+are specific to a certain group (for example, module 1 to B cells or module 4
+to NK cells), while some modules are rather scattered across multiple clusters
+(for example, module 8 is highly expressed in B cells, Naive CD4 T cells, Memory
+CD4 T cells).
+```{r mapping_metadata_bubbleplot, fig.width = 7, fig.height = 5}
+mtd_value <- as.character(monocle_obj@colData[, "seurat_annotations"])
+mtd_order <- order_metadata_groups_by_pseudotime(mtd_value, umap_df$pseudotime)
+plot_module_pseudobulk_expression(
+  module_expression_summary = module_avg_expression,
+  cell_metadata = mtd_value,
+  mtd_order = rev(mtd_order),
+  scale = TRUE,
+  cap_value = 2.5
+)
+```
+
+## Detect Outlier Modules
+
+The previous remark implies that some modules might be too scattered for them
+to provide relevant biological insights.
+Based on this observation, we devised a method that aims to detect outlier
+modules by analysing the pseudotime IQR and average UMAP distance patterns.
+Modules that have an absolute MAD Z score for both these metrics will be flagged
+as outliers.
+Supplimentary, we try to compare the performance of the modules against a baseline.
+For this, we calculate the value of these two metrics by considering the entire
+dataset being a single population. If a module lies in 85% of the baseline values,
+we conclude that it's behaviour isn't too different than a random assignation,
+hence the module is considered an outlier.
+
+Furthermore, we introduce an intermediary category of _redundant_ modules. Some
+gene clusters that were not flagged as outlier are still spanning across a
+high range of the pseudotime landscape. Usually, the area covered by these clusters
+are better described by multiple modules that represent smaller portions.
+To determine the redundancy, we sort the modules based on their pseudotime IQR
+(or the average UMAP distance). If a module cover a new part of the dataset with
+at least half of its associated cells, it will be considered non-redundant.
+Otherwise, we calculate a harmonic mean of the added coverage wrt the entire
+dataset and the proportion of cells from the module-specific population that are
+involved in this process. If this score is worse than the median of the scores
+of the modules already defined as non-redundant, the module will be classified
+as redundant.
+In our case, the following plot shows that module 2 was added despite its high
+IQR because it covers a significant amount of population that has not been
+described by the previous modules.
+```{r outlier_detection, fig.width = 8, fig.height = 6}
+umap_median_dist <- median(calculate_umap_average_distance(umap_df[, 1:2]))
+outlier_assessment <- detect_outlier(
+    modules_stats = modules_stats_summary,
+    cell_masks = module_mask,
+    psd_value = umap_df$pseudotime,
+    umap_dist_threshold = umap_median_dist * 0.85
+)
+
+coverage_df <- outlier_assessment$coverage_evolution_df %>% arrange(module_iqr)
+coverage_df$cumulative_coverage <- cumsum(coverage_df$coverage_added)
+ggplot(coverage_df, aes(
+    x = module_iqr,
+    y = cumulative_coverage,
+    size = f1_score, colour = median_umap_distance)) +
+    geom_point() +
+    geom_line(colour = "black", linewidth = 1) +
+    theme_classic() +
+    xlab("Module IQR") +
+    ylab("Cumulative Coverage") +
+    ggtitle("Outlier Detection Assessment") +
+    scale_colour_viridis_c() +
+    scale_size_continuous(range = c(3, 10)) +
+    ggrepel::geom_label_repel(
+        data = coverage_df,
+        aes(label = added_module),
+        colour = "black",
+        size = 6
+    ) 
+```
+
+We note the presence of high overlaps between some redundant and non-redundant
+modules. This suggests that the redundancy should not be interpreted as a strong
+discarding of the module, but as a general recommendation.
+```{r outlier_filtering}
+outlier_output <- outlier_assessment$outlier_output
+modules_stats_summary$is_outlier <- outlier_output[rownames(modules_stats_summary)]
+selected_modules <- modules_stats_summary %>%
+    filter(is_outlier == "no") %>%
+    arrange(median_pseudotime) %>%
+    pull(module)
+print(modules_stats_summary %>%
+    arrange(median_pseudotime, iqr_pseudotime, median_umap_distance) %>%
+    select(module, is_outlier))
+```
+
+Once the uninformative modules were discarded, Starlng determines the transition
+relationship between the remaining gene clusters. This is done using the trajectory
+graph: each module is associated with a node on the graph based on the median
+position. We then draw edges between nodes that are neighbours on the same
+trajectory (based on the removal of the other vertices). If cycles are formed,
+we remove the edges between the nodes that are that farthest with respect to
+the UMAP space.
+```{r module_transition_graph, fig.height = 5}
+closest_node_per_module <- get_closest_node_to_module(
+    trajectory_object = trajectory_object,
+    cell_umap = umap_df[, c("UMAP_1", "UMAP_2")],
+    module_expr = module_avg_expression[selected_modules],
+    expression_threshold = scale_threshold
+)
+module_medians <- get_module_centroid(split(module_mask, row(module_mask)), umap_df[, 1:2])
+module_adjacency <- get_module_transitions(
+    trajectory_object,
+    closest_node_per_module,
+    start_node = NULL,
+    similarity_values = module_medians[selected_modules, , drop = FALSE]
+)
+plot_module_transitions(
+    module_adj_matrix = module_adjacency,
+    closest_module = closest_node_per_module
+)
+```
+
+## Other Module Visualisation Plots
+
+Starlng offers multiple ways to visualise the expression patterns of the
+remaining modules. One of them is a cell-resolution heatmap, ordered by the
+pseudotime values. This visualisation confirms that most of the data is well
+represented by the chosen modules.
+```{r module_cell_heatmap, fig.width = 8, fig.height = 8}
+
+generate_cell_heatmap(
+  expression_matrix = expr_matrix,
+  gene_family_list = module_list[selected_modules],
+  metadata_df = data.frame(
+    seurat_annotations = mtd_value,
+    pseudotime = umap_df$pseudotime,
+    row.names = rownames(umap_df)
+  ),
+  metadata_name = "seurat_annotations",
+  apply_scale = TRUE,
+  k_smooth = 30,
+  cap = 2,
+  continuous_colors = grDevices::colorRampPalette(c("blue", "white", "red"))(100)
+)
+```
+
+Another visualisation relies on fitting regression splines (using GAM) that
+describe the evolution of the module average expression over the pseudotime.
+This plot also suggests that the second module plays an important role in
+defining the transitioning population.
+```{r module_pseudotime_curves, fig.width = 7, fig.height = 5}
+plot_module_trends_over_pseudotime(
+  expression_list = module_avg_expression[selected_modules],
+  pseudotime = umap_df$pseudotime,
+  module_colours = module_colours
+) + theme(legend.position = "none")
+```
+
+## Hub Genes
+
+The next step that Starlng follows is to define the impact of each gene in the
+overall pattern of expression of the module it belongs to. We defined this as the
+product between the fraction to the maximum weight of intra-module edges and a
+f1 score that takes into account the overlap between the module-specific population
+and the gene-specific population.
+For each module, we sort the genes decreasing based on this compound score. The
+genes with the highest values act as hubs inside the module.
+```{r hub_genes}
+inside_module_weights <- get_per_module_weight(
+    gene_adj_matrix = gene_adj_matrix,
+    gene_modules = module_list
+)
+hub_score_df <- get_gene_overlap_stat(
+  expr_matrix = expr_matrix,
+  gene_modules = module_list,
+  module_expr = module_avg_expression,
+  module_expression_threshold = scale_threshold,
+  gene_expression_percentile = 0.5,
+  gene_expression_threshold = 0,
+  scale = TRUE,
+  total_weight = inside_module_weights
+)
+hub_score_df$module <- chosen_clustering[rownames(hub_score_df)]
+hub_score_df$gene <- rownames(hub_score_df)
+
+hub_genes <- hub_score_df %>%
+    group_by(module) %>%
+    slice_max(combined_score, n = 3) %>%
+    filter(module %in% selected_modules)
+print(hub_genes)
+```
+
+We showcase the position of the top genes on the gene UMAP. In the following plot,
+only the top 10% of the edges (ordered by their weights) are shown. Edges between
+modules that are not neighbours are discarded.
+```{r gene_umap_hubs, fig.width = 8, fig.height = 6}
+filtered_gene_adj <- get_filtered_gene_adjacency(
+  gene_modules = module_list[selected_modules],
+  module_adjacency = module_adjacency,
+  gene_adjacency = gene_adj_matrix,
+  hub_genes = hub_genes,
+  percentage_non_hub_nodes = 1,
+  percentage_edges = 0.1
+)
+
+plot_gene_hub_umap(
+  umap_df = gene_umap,
+  filtered_gene_adj = filtered_gene_adj,
+  module_colours = module_colours,
+  legend_text_size = 10
+)
+```
+
+## Functional Analysis
+
+Finally, Starlng uses the modules and the gene ordering to profile the functional
+interpretation of their associated populations.
+The first tool for this type of functional analysis is to perform Enrichment
+Analysis. In our context, we use `gprofiler2` to determine the top 3 terms from
+the GO:BP database using only the top 15 hub genes from each module.
+
+We remark the presence of terms such as _regulation of natural killer_ for module
+11, _T cell receptor signaling_ for module 2 that match the original annotation.
+```{r enrichment_analysis, fig.height = 8, fig.width = 8}
+hub_genes <- hub_score_df %>%
+    group_by(module) %>%
+    slice_max(combined_score, n = 15) %>%
+    filter(module %in% selected_modules)
+go_bp_enrichment <- lapply(selected_modules, function(module_name) {
+  used_genes <- hub_genes %>% filter(module == module_name) %>% pull(gene)
+  gprofiler2::gost(
+    query = used_genes,
+    sources = "GO:BP",
+    organism = "hsapiens",
+    domain_scope = "custom_annotated",
+    custom_bg = rownames(expr_matrix),
+    correction_method = "fdr"
+  )
+})
+names(go_bp_enrichment) <- selected_modules
+
+plot_enrichment_top_terms(
+  enrichment_result = filter_enrichment_results(go_bp_enrichment),
+  top_n = 3,
+  colour_column = "intersection_size"
+)
+```
+
+Another approach is to derive the main Transcription Factors associated with
+each module. For this, we use `gprofiler2` to compare the gene sets against
+the `Transfac` databset. Starlng groups the TFs by their name (attempting to converge
+equivalent names such as HNF4a and HNF4-alpha) and shows, in a dotplot, the
+association between TFs and modules, along with information about the intersection
+size.
+
+We remark the presence of C\\EBP-beta, a Transcription Factor that is associated
+to the differention of myleoif and lymphoid cells.
+```{r identify_tfs, fig.width = 8, fig.height = 6}
+tfs <- get_transcription_factors(
+  gene_list = module_list,
+  organism = "hsapiens",
+  bg_genes = rownames(expr_matrix)
+)
+tf_stats <- get_tf_stats(tfs, include_intersection_set = TRUE)
+tf_stats <- add_tf_hub_stats(tf_stats, hub_genes)
+
+plot_module_tfs_bubbleplot(
+  tf_stats = tf_stats
+)
+```
+
+An alternative is to visualise the interaction between the Transcription Factors
+as well as the major regulons in a graph plot.
+```{r tf_module_transitions, fig.width=8, fig.height = 6}
+tf_module_adj <- get_module_transitions(
+  trajectory_object = trajectory_object,
+  closest_module = closest_node_per_module[names(tfs)],
+  similarity_values = module_medians[names(tfs), , drop = FALSE]
+)
+
+tf_gene_graph <- get_tf_gene_network(
+  tf_stats = tf_stats,
+  module_adjacency = tf_module_adj,
+  top_n_factors = 7,
+  hub_genes = hub_genes
+)
+
+plot_module_tfs_ggraph(
+  module_tf_g = tf_gene_graph,
+  exclude_non_hub_genes = TRUE
+)
+```
+
+```{r sessionInfo}
 sessionInfo()
 ```
+
+
+
