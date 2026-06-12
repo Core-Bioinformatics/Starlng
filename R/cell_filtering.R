@@ -260,3 +260,42 @@ filter_central_cells_from_group <- function(cell_group, umap_embedding, n_points
 
     return(cell_group[index_cells])
 }
+
+#' Calculate Average UMAP Distance
+#'
+#' @description Calculates an average distance for a selected set of cells in
+#' UMAP space, either from the centroid or as the mean pairwise distance.
+#'
+#' @param umap_df A matrix or data frame containing UMAP coordinates.
+#' @param selected_cells Optional vector of cell indices or names to include.
+#' @param centroid Logical indicating whether to use the centroid-based distance
+#' calculation. If FALSE, pairwise mean distance is returned.
+#'
+#' @return A numeric vector of distances, or a single numeric value when
+#' `centroid = FALSE`.
+#' @export
+calculate_umap_average_distance <- function(umap_df, selected_cells = NULL, centroid = TRUE) {
+    if (is.null(selected_cells)) {
+        selected_cells <- seq_len(nrow(umap_df))
+    }
+
+    if (length(selected_cells) < 2) {
+        return(0)
+    }
+
+    umap_df <- as.matrix(umap_df[selected_cells, ])
+    if (centroid) {
+        # calculate centroid 
+        centroid <- colMeans(umap_df, na.rm = TRUE)
+        umap_df[, 1] <- umap_df[, 1] - centroid[1]
+        umap_df[, 2] <- umap_df[, 2] - centroid[2]
+        umap_df <- umap_df ^ 2
+        umap_df <- rowSums(umap_df, na.rm = TRUE) ^ 0.5
+        return(umap_df)
+    }
+    # pairwise distance
+    dist_matrix <- as.matrix(stats::dist(umap_df))
+    umap_df <- rowMeans(dist_matrix, na.rm = TRUE)
+
+    return(umap_df)
+}

@@ -182,6 +182,114 @@ custom_learn_graph <- function(mon_obj,
     ))
 }
 
+#' Build a Trajectory Helper Object
+#'
+#' @description Extracts graph nodes, edges and projected cell-to-node
+#' assignments from a Monocle3 object for downstream plotting and analysis.
+#'
+#' @param monocle_object A Monocle3 object.
+#' @param reduction_name Name of the trajectory reduction to use.
+#'
+#' @return A list with graph, node positions, edge table and closest vertices.
+#' @export
+get_trajectory_object <- function(monocle_object, reduction_name = "UMAP") {
+    if (is.null(reduction_name) ||!(reduction_name %in% names(monocle_object@principal_graph))) {
+        reduction_name <- names(monocle_object@principal_graph)[1]
+        warning(paste("Reduction name", reduction_name, "not found in monocle object. Using", reduction_name, "instead."))
+    }
+
+    if (is.null(reduction_name)) {
+        stop("No valid reduction name provided and no reductions found in monocle object.")
+    }
+
+    trajectory_object <- list()
+    trajectory_object$graph <- monocle_object@principal_graph[[reduction_name]]
+
+    node_positions <- t(monocle_object@principal_graph_aux[[reduction_name]]$dp_mst)
+    node_positions <- as.data.frame(node_positions)
+    node_positions$node <- rownames(node_positions)
+    node_positions$degree <- igraph::degree(trajectory_object$graph, mode = "in")
+
+    trajectory_object$node_positions <- node_positions
+
+    edges_df <- igraph::as_data_frame(trajectory_object$graph)
+    edges_df$weight <- NULL # NOTE I don't think the weights are needed in our context
+    edges_df$x_from <- node_positions[edges_df$from, 1]
+    edges_df$y_from <- node_positions[edges_df$from, 2]
+    edges_df$x_to <- node_positions[edges_df$to, 1]
+    edges_df$y_to <- node_positions[edges_df$to, 2]
+    trajectory_object$edges_df <- edges_df
+
+    trajectory_object$closest_vertex <- monocle_object@principal_graph_aux[[reduction_name]]$pr_graph_cell_proj_closest_vertex[,1]
+
+    trajectory_object$n_nodes <- nrow(node_positions)
+    trajectory_object$n_edges <- nrow(edges_df)
+
+    return(trajectory_object)
+}
+
+#' Plot a Trajectory Graph
+#'
+#' @description Plots trajectory edges and optionally overlays selected node
+#' degrees. This plot is meant to be used as an additional layer in an UMAP
+#' plot.
+#'
+#' @param trajectory_object A trajectory object produced by
+#' `get_trajectory_object`.
+#' @param edge_size Line width for trajectory edges.
+#' @param edge_alpha Transparency of trajectory edges.
+#' @param edge_colour Colour of trajectory edges.
+#' @param plot_nodes Which node-degree groups to display: 1 for leaves, 2 for
+#' intermediate nodes, 3 for branching points. Setting to 0 will hide all nodes.
+#' @param node_size Point size for trajectory nodes.
+#' @param node_colours Named colours for node-degree groups.
+#' @param node_label_size Text size of node labels.
+#' @param node_label_vjust Vertical adjustment for node labels.
+#'
+#' @return A ggplot object of the trajectory.
+#' @export
+plot_trajectory_graph <- function(
+    trajectory_object,
+    edge_size = 0.5,
+    edge_alpha = 1,
+    edge_colour = "black",
+    plot_nodes = c(1, 2, 3),
+    node_size = 3,
+    node_colours = stats::setNames(c("red", "blue", "green"), c(1, 2, 3)),
+    node_label_size = 3,
+    node_label_vjust = -1
+) {
+    if (is.null(trajectory_object)) {
+        return(ggplot2::ggplot() + ggplot2::theme_void())
+    }
+    edges_df <- trajectory_object$edges_df
+
+    edge_gplot <- ggplot2::ggplot() +
+        ggplot2::geom_segment(data = edges_df, ggplot2::aes(x = .data$x_from, y = .data$y_from, xend = .data$x_to, yend = .data$y_to), linewidth = edge_size, alpha = edge_alpha, color = edge_colour) +
+        ggplot2::theme_void()
+
+    if (is.null(plot_nodes) || (length(plot_nodes) == 1 && plot_nodes == 0)) {
+        return(edge_gplot)
+    }
+
+    plot_nodes <- intersect(plot_nodes, 1:3)
+
+    node_positions <- trajectory_object$node_positions
+    node_positions$degree[node_positions$degree > 3] <- 3
+    node_positions <- node_positions %>%
+        dplyr::filter(.data$degree %in% plot_nodes) %>%
+        dplyr::mutate(color = factor(.data$degree, levels = plot_nodes))
+    dimension_columns <- colnames(node_positions)[seq_len(2)]
+
+    return(
+        edge_gplot +
+        ggplot2::geom_point(data = node_positions, ggplot2::aes(x = .data[[dimension_columns[1]]], y = .data[[dimension_columns[2]]], color = .data$color), size = node_size) +
+        ggplot2::scale_color_manual(values = node_colours) +
+        ggplot2::geom_text(data = node_positions, ggplot2::aes(x = .data[[dimension_columns[1]]], y = .data[[dimension_columns[2]]], label = .data$node), size = node_label_size, vjust = node_label_vjust)
+    )
+}
+
+
 #' Order the cells by pseudotime
 #' 
 #' @description This function follows the logic of the `order_cells` function
@@ -237,6 +345,15 @@ custom_pseudotime_ordering <- function(monocle_object,
     return(entire_psd)
 }
 
+#' Compute an Optimal Pseudotime Range
+#'
+#' @description Chooses a root node based on branch-length balance over the
+#' trajectory diameter and returns the associated pseudotime ordering.
+#'
+#' @param monocle_object A Monocle3 object with a learned trajectory graph.
+#'
+#' @return A list with selected start node and pseudotime values.
+#' @keywords internal
 get_optimal_pseudotime_range <- function(monocle_object) {
     trajectory_graph <- monocle_object@principal_graph$UMAP
     node_degrees <- igraph::degree(trajectory_graph, mode = "all")
@@ -284,25 +401,15 @@ get_optimal_pseudotime_range <- function(monocle_object) {
 #' 
 #' @description This function provides a recommendation of a pseudotime ordering
 #' based on the metadata available in the monocle object. The recommendation is
-#' done by selecting the subgroup of a metadata column that leads to the highest
-#' interquartile range of the pseudotime values (or any criteria the user
-#' provides). This is translated as an ordering that has the highest
-#' variability.
+#' done by selecting an end node from the diameter of the trajectory graph. The
+#' function identifies the metadata group whose centre is the closest to the
+#' starting point.
 #'
-#' @param monocle_object A monocle object.
-#' @param recommendation_criteria A function that defines the criteria of
-#' determining the best pseudotime ordering. The function should take the
-#' pseudotime values as input and return a numeric value. The function should
-#' be monotonically increasing. Defaults to a function that returns the
-#' interquartile range.
-#'
+#' @param monocle_object A Monocle3 object.
 #' @return A list that contains the recommended metadata column, the subgroup
 #' and the pseudotime values.
 #' @export
-get_pseudotime_recommendation <- function(monocle_object,
-                                          recommendation_criteria = function(pseudotime_values) {
-                                            max(pseudotime_values) - min(pseudotime_values)
-                                          }) {
+get_pseudotime_recommendation <- function(monocle_object) {
     optimal_range <- get_optimal_pseudotime_range(monocle_object)
     closest_vertex <- monocle_object@principal_graph_aux$UMAP$pr_graph_cell_proj_closest_vertex
     discrete_groups <- list()
@@ -352,3 +459,30 @@ get_pseudotime_recommendation <- function(monocle_object,
         recommended_pseudotime = optimal_range$pseudotime
     ))
 }
+
+
+#' Order Metadata Groups by Pseudotime
+#'
+#' @description Orders categorical metadata levels by their median pseudotime
+#' value.
+#'
+#' @param metadata_value A vector with categorical metadata values.
+#' @param pseudotime A numeric vector with pseudotime values.
+#'
+#' @return A character vector of metadata levels ordered by median pseudotime.
+#' @export
+order_metadata_groups_by_pseudotime <- function(
+    metadata_value,
+    pseudotime
+) {
+    grouped_df <- data.frame(
+        mtd = as.character(metadata_value),
+        psd = pseudotime
+    )
+    grouped_df %>%
+        dplyr::group_by(.data$mtd) %>%
+        dplyr::summarise(median_psd = stats::median(.data$psd, na.rm = TRUE)) %>%
+        dplyr::arrange(.data$median_psd) %>%
+        dplyr::pull(.data$mtd)
+}
+

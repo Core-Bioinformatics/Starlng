@@ -116,6 +116,55 @@ plot_umap_continuous <- function(umap_df,
 }
 
 # TODO add the option to plot text above the discrete groups
+#' Plot UMAP with Discrete or Continuous Coloring
+#' 
+#' @description This function plots a UMAP embedding with points colored by either
+#' discrete or continuous cell information. The function provides options for
+#' sorting the cells based on the coloring variable, adjusting point size and
+#' alpha, and customizing the color scheme for both discrete and continuous
+#' coloring.
+#' 
+#' @param umap_embedding A matrix or data frame containing the UMAP coordinates
+#' of the cells. It should have two columns corresponding to UMAP1 and UMAP2.
+#' @param cell_info A vector containing the information to color the cells by. It
+#' can be either a factor/character vector for discrete coloring or a numeric vector
+#' for continuous coloring. The length of this vector should match the number of rows in
+#' `umap_embedding`.
+#' @param mtd_name A string specifying the name of the metadata variable to be
+#' used in the legend.
+#' @param cell_sort_order A character vector specifying the order of cells based on
+#' the `cell_info` variable. For discrete coloring, it should contain the unique values
+#' of `cell_info` in the desired order. For continuous coloring, it can be either
+#' "lowest", "highest" or "default" to sort cells by the `cell_info` values in
+#' ascending, descending or no particular order, respectively.
+#' @param scale_values A logical indicating whether to scale the `cell_info`
+#' values between 0 and 1 for continuous coloring. Defaults to FALSE.
+#' @param cell_size A numeric value specifying the size of the points in the plot.
+#' Defaults to 0.3.
+#' @param cell_alpha A numeric value between 0 and 1 specifying the transparency of
+#' the points in the plot. Defaults to 0.8.
+#' @param legend_text_size A numeric value specifying the size of the text in
+#' the legend. Defaults to 10.
+#' @param legend_key_size A numeric value specifying the size of the legend keys
+#' for discrete coloring. Defaults to 0.5.
+#' @param axis_text_size A numeric value specifying the size of the axis text in
+#' the plot. Defaults to 10.
+#' @param show_labels A logical indicating whether to show labels for discrete
+#' groups. Defaults to TRUE.
+#' @param label_size A numeric value specifying the size of the labels for
+#' discrete groups. Defaults to 10.
+#' @param colourbar_width A numeric value specifying the width of the colorbar
+#' for continuous coloring. Defaults to 50 points. If set to 0, the colorbar
+#' will be hidden.
+#' @param discrete_colors A list of color vectors for discrete coloring, where the
+#' names of the list correspond to the number of unique values in `cell_info`.
+#' If NULL, the default ggplot2 colors will be used.
+#' @param continuous_colors A vector of colors for continuous coloring. If NULL, the
+#' default ggplot2 colors will be used.
+#' 
+#' @return A ggplot object representing the UMAP plot with the specified
+#' coloring and customization options.
+#' @export
 plot_umap <- function(umap_embedding,
                       cell_info,
                       mtd_name,
@@ -464,6 +513,58 @@ plot_umap_gene_modules_shiny <- function(shiny_env,
     ) + patchwork::plot_layout(widths = c(1, 0.14))
 }
 
+#' Plot UMAP for Multiple Gene Modules
+#' 
+#' @description This function plots UMAP embeddings for multiple gene modules,
+#' with options for discrete or continuous coloring based on the summarization
+#' of gene expression. The function allows for customization of the plot
+#' appearance, including point size, alpha, legend text size, axis text size,
+#' and color schemes. It also provides the option to include trajectory graphs
+#' if a trajectory object is provided.
+#' 
+#' @param module_summaries A data frame or a list of data frames containing the
+#' summarized gene expression information for each module. If a data frame is
+#' provided, it should have columns corresponding to each module. If a list is
+#' provided, each element should be a data frame for a specific module.
+#' @param umap_embedding A matrix or data frame containing the UMAP coordinates
+#' of the cells. It should have two columns corresponding to UMAP1 and UMAP2.
+#' @param trajectory_object An optional trajectory object that can be used to
+#' overlay trajectory graphs on the UMAP plots. The trajectory object should be
+#' compatible with the `plot_trajectory_graph` function.
+#' @param legend_detail A string to be appended to the legend title for continuous
+#' coloring, providing additional context about the summarization method used.
+#' @param combine_legend A logical indicating whether to combine the legends of
+#' all module plots into a single legend. Defaults to TRUE.
+#' @param scale_values A logical indicating whether to scale the summarized gene
+#' expression values between 0 and 1 for continuous coloring. Defaults to TRUE.
+#' @param n_columns An integer specifying the number of columns to use when 
+#' arranging the module plots. Defaults to 3.
+#' @param trajectory_width A numeric value specifying the width of the
+#' trajectory edges when overlaying the trajectory graph on the UMAP plots.
+#' Defaults to 0.75.
+#' @param cell_sort_order A character vector specifying the order of cells based on
+#' the summarized gene expression values. It can be either "lowest", "highest" or
+#' "default" to sort cells by the summarized values in ascending, descending or
+#' no particular order, respectively.
+#' @param cell_size A numeric value specifying the size of the points in the
+#' UMAP plots. Defaults to 0.3.
+#' @param cell_alpha A numeric value specifying the transparency of the points in the
+#' UMAP plots. Defaults to 0.8.
+#' @param legend_text_size A numeric value specifying the size of the text in the
+#' legends. Defaults to 10.
+#' @param axis_text_size A numeric value specifying the size of the axis text in the
+#' UMAP plots. Defaults to 10.
+#' @param legend_key_size A numeric value specifying the size of the legend keys
+#' for discrete coloring. Defaults to 1.
+#' @param colourbar_height A numeric value specifying the height of the colorbar
+#' for continuous coloring. Defaults to 50 points. If set to 0, the colorbar will be hidden.
+#' @param continuous_colors A vector of colors for continuous coloring. If NULL, the default ggplot2 colors will be used.
+#' @param show_labels A logical indicating whether to show labels for discrete groups. Defaults to FALSE.
+#' 
+#' @return A patchwork object containing the UMAP plots for each gene module,
+#' arranged according to the specified number of columns, with a combined legend
+#' if `combine_legend` is TRUE.
+#' @export
 plot_umap_gene_modules <- function(
     module_summaries,
     umap_embedding,
@@ -668,6 +769,29 @@ plot_umap_gene_modules_shiny_2 <- function(module_summaries,
     plot_obj
 }
 
+
+
+#' Generate Cell Heatmap
+#'
+#' @description Generates a heatmap of gene-family expression across cells,
+#' optionally ordered by pseudotime and annotated by metadata.
+#'
+#' @param expression_matrix A gene-by-cell expression matrix.
+#' @param gene_family_list A named list of genes grouped by gene family.
+#' @param metadata_df A data frame with cell metadata; rownames must match cell
+#' names in `expression_matrix`.
+#' @param metadata_name Optional metadata column used for the top annotation.
+#' @param legend_name Title used for the heatmap legend.
+#' @param apply_scale Logical indicating whether to z-score each gene across
+#' cells before plotting.
+#' @param k_smooth Integer kernel size used to smooth expression along cells.
+#' @param cap Numeric cap applied to scaled or raw expression values.
+#' @param axis_text_size Font size used for row labels and annotations.
+#' @param discrete_colour_list Optional named list of discrete colour vectors.
+#' @param continuous_colors Optional vector of colors used for the heatmap body.
+#'
+#' @return A `ComplexHeatmap` heatmap object.
+#' @export
 generate_cell_heatmap <- function(expression_matrix,
                                   gene_family_list,
                                   metadata_df,
@@ -704,7 +828,7 @@ generate_cell_heatmap <- function(expression_matrix,
 
 
     if (is.null(continuous_colors)) {
-        continuous_colors = c("#313695", "#4575B4", "#74ADD1", "#ABD9E9", "#E0F3F8", "#FFFFBF", "#FEE090", "#FDAE61", "#F46D43", "#D73027", "#A50026")
+        continuous_colors <- c("#313695", "#4575B4", "#74ADD1", "#ABD9E9", "#E0F3F8", "#FFFFBF", "#FEE090", "#FDAE61", "#F46D43", "#D73027", "#A50026")
     }
 
     ncells <- ncol(expression_matrix)
