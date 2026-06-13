@@ -284,7 +284,7 @@ ui_transcription_factor_activity <- function(id) {
                         inputId = ns("exclude_non_hub_genes"),
                         label = "Exclude non-hub genes from network plot",
                         status = "success",
-                        value = FALSE,
+                        value = TRUE,
                         fill = TRUE
                     )
                 ),
