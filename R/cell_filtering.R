@@ -242,13 +242,17 @@ filter_central_cells_from_group <- function(cell_group, umap_embedding, n_points
     end_threshold <- 1
     prev_distance <- 0
     while (start_threshold < end_threshold) {
-        threshold_mid <- round((start_threshold + end_threshold) / 2, 2)
+        threshold_mid <- round((start_threshold + end_threshold) / 2, 4)
         if (prev_distance == threshold_mid) {
             break
         }
 
         threshold_distance <- stats::quantile(distance_cells_gmedian, probs = threshold_mid)
         index_cells <- which(distance_cells_gmedian <= threshold_distance)
+
+        if (length(index_cells) == n_points) {
+            break
+        }
 
         if (length(index_cells) <= n_points) {
             start_threshold <- threshold_mid
