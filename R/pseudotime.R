@@ -420,6 +420,7 @@ get_pseudotime_recommendation <- function(monocle_object) {
     }
 
     umap_df <- monocle_object@int_colData$reducedDims$UMAP
+    node_positions <- monocle_object@principal_graph_aux$UMAP$dp_mst
     best_criteria <- NULL
 
     for (mtd_name in names(discrete_groups)) {
@@ -432,10 +433,20 @@ get_pseudotime_recommendation <- function(monocle_object) {
             filtered_cells <- filter_central_cells_from_group(
                 cell_group = cell_group,
                 umap_embedding = umap_df,
-                n_points = 5
+                n_points = 19
             )
-            filtered_node_ids <- paste0("Y_", closest_vertex[filtered_cells, 1])
-            criteria_value <- sum(filtered_node_ids == optimal_range$start_node) / length(filtered_node_ids)
+
+            # approach 1: count the most overlaps to the starting point
+            # filtered_node_ids <- paste0("Y_", closest_vertex[filtered_cells, 1])
+            # criteria_value <- sum(filtered_node_ids == optimal_range$start_node) / length(filtered_node_ids)
+
+            # approach 2: calculate the average UMAP distance to the starting point
+            start_node_position <- t(node_positions)[optimal_range$start_node, ]
+            umap_dist <- umap_df[filtered_cells, , drop = FALSE]
+            umap_dist[, 1] <- umap_dist[, 1] - start_node_position[1]
+            umap_dist[, 2] <- umap_dist[, 2] - start_node_position[2]
+            umap_dist <- sqrt(umap_dist[, 1]^2 + umap_dist[, 2]^2)
+            criteria_value <- 1 / mean(umap_dist, na.rm = TRUE)
 
             # NOTE uncomment if you want to calculate the pseudotime again
             # monocle_object <- monocle3::order_cells(monocle_object, root_cells = filtered_cells)
