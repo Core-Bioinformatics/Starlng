@@ -222,7 +222,10 @@ summarise_module_stats <- function(modules_stats, gene_modules) {
 #' first). A second round allows redundant modules to be labeled as non-redundant
 #' if they provide a significant percentage of new cells compared to the already
 #' covered population (by default, the threshold is the median F1 score of
-#' the non-redundant modules).
+#' the non-redundant modules). The third run removes redundancy for modules
+#' whose population either match 1 on 1, or are a subset of modules that are
+#' already non-redundant. By default, the overlap should be pretty high (95%)
+#' for the redundancy removal to happen.
 #'
 #' @param modules_stats A data frame of module summary statistics.
 #' @param cell_masks A logical matrix of module-to-cell memberships.
@@ -233,10 +236,13 @@ summarise_module_stats <- function(modules_stats, gene_modules) {
 #' @param thresh_psd_bad Threshold for flagging a module as an outlier. If NULL,
 #' it will be set to the 85% quantile of the IQR pseudotime of the entire dataset.
 #' @param umap_dist_threshold Optional threshold for median UMAP distance.
+#' @param overlap_threshold Overlap threshold that allows redundant modules
+#' to become non-redundant if most of their cells already belong to the
+#' population of an already non-redundant module.
 #'
 #' @return A list with outlier labels and coverage evolution data.
 #' @export
-detect_outlier <- function(modules_stats, cell_masks, psd_value, thresh_psd_good = NULL, thresh_psd_bad = NULL, umap_dist_threshold = NULL) {
+detect_outlier <- function(modules_stats, cell_masks, psd_value, thresh_psd_good = NULL, thresh_psd_bad = NULL, umap_dist_threshold = NULL, overlap_threshold = 0.95) {
     if (is.null(thresh_psd_bad)) {
         thresh_psd_bad <- stats::IQR(psd_value, na.rm = TRUE) * 0.85
     }
@@ -244,6 +250,9 @@ detect_outlier <- function(modules_stats, cell_masks, psd_value, thresh_psd_good
         .data$median_umap_distance,
         .data$iqr_pseudotime
     )
+    if (!is.character(modules_stats$module)) {
+        modules_stats$module <- as.character(modules_stats$module)
+    }
     cell_masks <- cell_masks[modules_stats$module, ]
 
     mad_z_scores_psd <- stats::setNames(mad_z_score(modules_stats$iqr_pseudotime), modules_stats$module)
@@ -254,8 +263,8 @@ detect_outlier <- function(modules_stats, cell_masks, psd_value, thresh_psd_good
 
     ncells_per_module <- apply(cell_masks, 1, sum)
 
-    outlier_output[abs(mad_z_scores_psd) > 3.5 | abs(mad_z_scores_umap) > 3.5] <- "redundant"
-    outlier_output[abs(mad_z_scores_psd) > 3.5 & abs(mad_z_scores_umap) > 3.5] <- "yes"
+    outlier_output[mad_z_scores_psd > 3.5 | mad_z_scores_umap > 3.5] <- "redundant"
+    outlier_output[mad_z_scores_psd > 3.5 & mad_z_scores_umap > 3.5] <- "yes"
     outlier_output[modules_stats$iqr_pseudotime >= thresh_psd_bad] <- "yes"
     outlier_output[ncells_per_module <= 10] <- "yes"
 
@@ -370,6 +379,33 @@ detect_outlier <- function(modules_stats, cell_masks, psd_value, thresh_psd_good
         }
         covered_mask <- temp_mask
         threshold_f1_score <- stats::median(coverage_evolution_df$f1_score, na.rm = TRUE)
+    }
+
+    # third run to go through the remaining redundant modules;
+    # if a module has a high precision in an non outlier module, it can be considered as a valid module
+    for (i in seq_len(nrow(modules_stats))) {
+        module_name <- modules_stats$module[i]
+        if (outlier_output[module_name] != "redundant") {
+            next
+        }
+
+        current_mask <- cell_masks[module_name, ]
+        ncells <- sum(current_mask)
+        if (ncells < 10) {
+            next
+        }
+
+        comparable_modules <- names(outlier_output)[outlier_output == "no"]
+        overlap_to_modules <- sapply(comparable_modules, function(other_module) {
+            other_mask <- cell_masks[other_module, ]
+            precision <- sum(current_mask & other_mask) / sum(current_mask)
+            return(precision)
+        })
+        max_overlap <- max(overlap_to_modules, na.rm = TRUE)
+        if (max_overlap >= overlap_threshold) {
+            outlier_output[module_name] <- "no"
+
+        }
     }
 
     return(list(

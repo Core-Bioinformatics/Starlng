@@ -10,7 +10,8 @@ detect_outlier(
   psd_value,
   thresh_psd_good = NULL,
   thresh_psd_bad = NULL,
-  umap_dist_threshold = NULL
+  umap_dist_threshold = NULL,
+  overlap_threshold = 0.95
 )
 }
 \arguments{
@@ -28,6 +29,10 @@ non-outlier modules.}
 it will be set to the 85\% quantile of the IQR pseudotime of the entire dataset.}
 
 \item{umap_dist_threshold}{Optional threshold for median UMAP distance.}
+
+\item{overlap_threshold}{Overlap threshold that allows redundant modules
+to become non-redundant if most of their cells already belong to the
+population of an already non-redundant module.}
 }
 \value{
 A list with outlier labels and coverage evolution data.
@@ -45,5 +50,8 @@ median UMAP distance and IQR pseudotime, so the best modules are evaluated
 first). A second round allows redundant modules to be labeled as non-redundant
 if they provide a significant percentage of new cells compared to the already
 covered population (by default, the threshold is the median F1 score of
-the non-redundant modules).
+the non-redundant modules). The third run removes redundancy for modules
+whose population either match 1 on 1, or are a subset of modules that are
+already non-redundant. By default, the overlap should be pretty high (95\%)
+for the redundancy removal to happen.
 }
