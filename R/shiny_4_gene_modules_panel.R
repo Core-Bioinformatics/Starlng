@@ -1065,6 +1065,13 @@ server_gene_hub_scores <- function(id) {
                     shiny::req(score_df, cancelOutput = TRUE)
                     score_df <- as.data.frame(score_df)
                     shiny::req(nrow(score_df) > 0, ncol(score_df) > 0, cancelOutput = TRUE)
+                    rwnms <- rownames(score_df)
+                    score_df <- score_df %>%
+                        dplyr::group_by(.data$module) %>%
+                        dplyr::mutate(rank_score = rank(-.data$combined_score, ties.method = "min")) %>%
+                        dplyr::ungroup() %>%
+                        as.data.frame()
+                    rownames(score_df) <- rwnms
 
                     output$gene_hub_scores_table <- DT::renderDT({
                         DT::datatable(
