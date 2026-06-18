@@ -86,6 +86,8 @@ filter_enrichment_results <- function(
 #' using "intersection_size".
 #' @param point_size_range Numeric vector of length 2 defining point size range.
 #' @param font_size Base font size used in the plot theme.
+#' @param words_per_line Integer indicating how many words should be displayed
+#' per line for every term name. Defaults to 5.
 #'
 #' @return A ggplot object, or NULL if the input is empty.
 #' @export
@@ -94,7 +96,8 @@ plot_enrichment_top_terms <- function(
     top_n = 2,
     colour_column = NULL,
     point_size_range = c(3, 10),
-    font_size = 10
+    font_size = 10,
+    words_per_line = 5
 ) {
     if (is.null(enrichment_result) || nrow(enrichment_result) == 0) {
         return(NULL)
@@ -118,12 +121,12 @@ plot_enrichment_top_terms <- function(
     # terms should have 5 words per line
     enrichment_result$term_name <- sapply(enrichment_result$term_name, function(term) {
         words <- unlist(strsplit(term, " "))
-        if (length(words) <= 4) {
+        if (length(words) <= words_per_line) {
             return(term)
         }
         new_term <- ""
-        for (i in seq(1, length(words), by = 4)) {
-            new_term <- paste(new_term, paste(words[i:min(i+3, length(words))], collapse = " "), "\n")
+        for (i in seq(1, length(words), by = words_per_line)) {
+            new_term <- paste(new_term, paste(words[i:min(i+words_per_line-1, length(words))], collapse = " "), "\n")
         }
         return(new_term)
     })
@@ -373,8 +376,9 @@ add_tf_hub_stats <- function(existing_stats, hub_genes) {
 #'
 #' @description Builds an igraph object representing TF-TF and TF-gene
 #' relationships. The graph is built based on the associations done from the
-#' TF enrichment analysis. TF-TF relationships are derived from neighbourhood
-#' of the modules along the graph trajectory.
+#' TF enrichment analysis. TF-TF relationships are derived from the module
+#' ordering: TFs within the same module are linked in descending n_genes order,
+#' and inter-module links connect the top-ranked TF from each adjacent module.
 #'
 #' @param tf_stats A TF statistics data frame including module, tf and genes.
 #' @param module_adjacency Optional module adjacency matrix.
@@ -418,25 +422,56 @@ get_tf_gene_network <- function(
     }
 
     tf_adjacency <- matrix(0, nrow = length(top_tfs), ncol = length(top_tfs), dimnames = list(top_tfs, top_tfs))
-    for (i in seq_along(top_tfs)) {
-        tf_i <- top_tfs[i]
-        modules_i <- tf_stats$module[tf_stats$tf == tf_i]
-        for (j in seq(from = i, to = length(top_tfs))) {
-            tf_j <- top_tfs[j]
-            modules_j <- tf_stats$module[tf_stats$tf == tf_j]
-            if (i == j) {
-                next
-            }
 
-            are_linked <- any(match(modules_i, modules_j, nomatch = 0) > 0)
-            if (!is.null(module_adjacency)) {
-                are_linked <- are_linked || any(module_adjacency[modules_i, modules_j, drop = FALSE] == 1)
-            }
-            if (are_linked) {
-                tf_adjacency[tf_i, tf_j] <- 1
-                tf_adjacency[tf_j, tf_i] <- 1
-            }
+    same_module_edges <- do.call(rbind, lapply(split(tf_stats, tf_stats$module), function(module_df) {
+        module_df <- module_df %>%
+            dplyr::arrange(dplyr::desc(.data$n_genes), .data$tf) %>%
+            dplyr::distinct(.data$tf, .keep_all = TRUE)
+
+        if (nrow(module_df) < 2) {
+            return(NULL)
         }
+
+        data.frame(
+            from = utils::head(module_df$tf, -1),
+            to = utils::tail(module_df$tf, -1),
+            stringsAsFactors = FALSE
+        )
+    }))
+
+    inter_module_edges <- NULL
+    if (!is.null(module_adjacency)) {
+        module_representatives <- tf_stats %>%
+            dplyr::group_by(.data$module) %>%
+            dplyr::arrange(dplyr::desc(.data$n_genes), .data$tf) %>%
+            dplyr::slice_head(n = 1) %>%
+            dplyr::ungroup() %>%
+            dplyr::select(.data$module, .data$tf)
+
+        module_pairs <- which(module_adjacency == 1 & upper.tri(module_adjacency), arr.ind = TRUE)
+        if (nrow(module_pairs) > 0) {
+            inter_module_edges <- do.call(rbind, lapply(seq_len(nrow(module_pairs)), function(i) {
+                module_i <- rownames(module_adjacency)[module_pairs[i, "row"]]
+                module_j <- colnames(module_adjacency)[module_pairs[i, "col"]]
+                tf_i <- module_representatives$tf[module_representatives$module == module_i]
+                tf_j <- module_representatives$tf[module_representatives$module == module_j]
+
+                if (length(tf_i) == 0 || length(tf_j) == 0) {
+                    return(NULL)
+                }
+
+                data.frame(from = tf_i[1], to = tf_j[1], stringsAsFactors = FALSE)
+            }))
+        }
+    }
+
+    tf_tf_edges <- dplyr::bind_rows(same_module_edges, inter_module_edges)
+    if (nrow(tf_tf_edges) > 0) {
+        tf_tf_edges <- tf_tf_edges %>%
+            dplyr::filter(.data$from %in% top_tfs, .data$to %in% top_tfs) %>%
+            dplyr::distinct()
+        tf_adjacency[cbind(tf_tf_edges$from, tf_tf_edges$to)] <- 1
+        tf_adjacency[cbind(tf_tf_edges$to, tf_tf_edges$from)] <- 1
     }
 
     # tf - gene adjacency
@@ -536,7 +571,14 @@ plot_module_tfs_ggraph <- function(
     has_ggrepel <- requireNamespace("ggrepel", quietly = TRUE)
     if (is.null(module_colours)) {
         unique_modules <- setdiff(unique(igraph::V(module_tf_g)$module), "")
-        module_colours <- stats::setNames(grDevices::hcl.colors(length(unique_modules), palette = "Dark 3"), unique_modules)
+        if (length(unique_modules) == 1) {
+            module_colours <- stats::setNames("#5959cd", unique_modules)
+        } else {
+            module_colours <- stats::setNames(
+                qualpalr::qualpal(length(unique_modules), list(h = c(0, 360), s = c(0.2, 0.8), l = c(0.4, 0.65)), bg = "white")$hex,
+                unique_modules
+            )
+        }
     }
 
     vertex_colour_key <- ifelse(igraph::V(module_tf_g)$type == "tf", "TF", as.character(igraph::V(module_tf_g)$module))
