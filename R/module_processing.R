@@ -529,6 +529,10 @@ get_module_centroid <- function(module_expr, cell_umap, expression_threshold = 0
             module_expr <- mask_expression
         }
     }
+
+    if (sum(module_expr) == 0) {
+        return(c(NA, NA))
+    }
     centroid_pop <- Gmedian::Gmedian(cell_umap[module_expr, 1:2, drop = FALSE])
     return(centroid_pop)
 }
@@ -1031,7 +1035,7 @@ plot_gene_hub_umap <- function(
         if (n_modules == 1) {
             module_colours <- "blue"
         } else {
-            module_colours <- qualpalr::qualpal(n_modules, list(h = c(0, 360), s = c(0.2, 0.8), l = c(0.4, 0.65)))$hex
+            module_colours <- qualpalr::qualpal(n_modules, list(h = c(0, 360), s = c(0.2, 0.8), l = c(0.4, 0.65)), bg = "white")$hex
         }
         names(module_colours) <- as.character(used_modules)
     }
@@ -1117,6 +1121,8 @@ plot_gene_hub_umap <- function(
 #' @param label_size Text size for module labels.
 #' @param show_labels Logical indicating whether module labels are shown. The
 #' labels will be located at the maximum point of the smoothed trajectory.
+#' @param smooth_threshold_max Threshold used to discard modules where the maximum
+#' value of the smoothed trajectory is below this value.
 #'
 #' @return A ggplot object.
 #' @export
@@ -1127,7 +1133,8 @@ plot_module_trends_over_pseudotime <- function(expression_list,
     axis_text_size = 10,
     legend_text_size = 10,
     label_size = 10,
-    show_labels = TRUE
+    show_labels = TRUE,
+    smooth_threshold_max = 0.2
 ) {
     if (inherits(expression_list, "list")) {
         module_names <- names(expression_list)
@@ -1151,7 +1158,11 @@ plot_module_trends_over_pseudotime <- function(expression_list,
         module_colours <- NULL
     }
     if (is.null(module_colours)) {
-        module_colours <- stats::setNames(qualpalr::qualpal(length(module_names), list(h = c(0, 360), s = c(0.2, 0.8), l = c(0.4, 0.65)))$hex, module_names)
+        if (length(module_names) == 1) {
+            module_colours <- stats::setNames("#5959cd", module_names)
+        } else {
+            module_colours <- stats::setNames(qualpalr::qualpal(length(module_names), list(h = c(0, 360), s = c(0.2, 0.8), l = c(0.4, 0.65)))$hex, module_names)
+        }
     }
     ncells <- length(pseudotime)
 
@@ -1181,6 +1192,14 @@ plot_module_trends_over_pseudotime <- function(expression_list,
                 return(.x)
             })
     }
+    # discard modules with maximum under the threshold
+    max_expr_per_module <- smooth_approx %>%
+        dplyr::group_by(.data$module) %>%
+        dplyr::summarise(max_expr = max(.data$expression, na.rm = TRUE))
+    modules_to_keep <- max_expr_per_module$module[max_expr_per_module$max_expr > smooth_threshold_max]
+    smooth_approx <- smooth_approx[smooth_approx$module %in% modules_to_keep, ]
+    df <- df[df$module %in% modules_to_keep, ]
+    module_colours <- module_colours[names(module_colours) %in% modules_to_keep]
 
     ggplot_obj <- ggplot2::ggplot(df, ggplot2::aes(x = .data$pseudotime, y = .data$expression, color = .data$module, group = .data$module)) +
         ggplot2::geom_line(data = smooth_approx, linewidth = linewidth) +
