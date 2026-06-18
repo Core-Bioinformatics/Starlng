@@ -15,7 +15,11 @@ generate_cell_heatmap(
   cap = 20,
   axis_text_size = 10,
   discrete_colour_list = NULL,
-  continuous_colors = NULL
+  continuous_colors = NULL,
+  show_pseudotime_legend = FALSE,
+  show_metadata_legend = TRUE,
+  show_modules_legend = FALSE,
+  show_expression_legend = TRUE
 )
 }
 \arguments{
@@ -42,6 +46,18 @@ cells before plotting.}
 \item{discrete_colour_list}{Optional named list of discrete colour vectors.}
 
 \item{continuous_colors}{Optional vector of colors used for the heatmap body.}
+
+\item{show_pseudotime_legend}{Logical indicating whether to show the pseudotime
+legend. Defaults to FALSE.}
+
+\item{show_metadata_legend}{Logical indicating whether to show the metadata
+legend. Defaults to TRUE.}
+
+\item{show_modules_legend}{Logical indicating whether to show the gene family
+legend. Defaults to FALSE.}
+
+\item{show_expression_legend}{Logical indicating whether to show the expression
+legend. Defaults to TRUE.}
 }
 \value{
 A \code{ComplexHeatmap} heatmap object.

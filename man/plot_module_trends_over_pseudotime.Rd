@@ -12,7 +12,8 @@ plot_module_trends_over_pseudotime(
   axis_text_size = 10,
   legend_text_size = 10,
   label_size = 10,
-  show_labels = TRUE
+  show_labels = TRUE,
+  smooth_threshold_max = 0.2
 )
 }
 \arguments{
@@ -33,6 +34,9 @@ expression per cell.}
 
 \item{show_labels}{Logical indicating whether module labels are shown. The
 labels will be located at the maximum point of the smoothed trajectory.}
+
+\item{smooth_threshold_max}{Threshold used to discard modules where the maximum
+value of the smoothed trajectory is below this value.}
 }
 \value{
 A ggplot object.

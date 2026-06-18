@@ -9,7 +9,8 @@ plot_enrichment_top_terms(
   top_n = 2,
   colour_column = NULL,
   point_size_range = c(3, 10),
-  font_size = 10
+  font_size = 10,
+  words_per_line = 5
 )
 }
 \arguments{
@@ -24,6 +25,9 @@ using "intersection_size".}
 \item{point_size_range}{Numeric vector of length 2 defining point size range.}
 
 \item{font_size}{Base font size used in the plot theme.}
+
+\item{words_per_line}{Integer indicating how many words should be displayed
+per line for every term name. Defaults to 5.}
 }
 \value{
 A ggplot object, or NULL if the input is empty.

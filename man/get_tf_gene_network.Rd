@@ -26,6 +26,7 @@ An igraph object, or invisible(NULL) when no valid TFs are available.
 \description{
 Builds an igraph object representing TF-TF and TF-gene
 relationships. The graph is built based on the associations done from the
-TF enrichment analysis. TF-TF relationships are derived from neighbourhood
-of the modules along the graph trajectory.
+TF enrichment analysis. TF-TF relationships are derived from the module
+ordering: TFs within the same module are linked in descending n_genes order,
+and inter-module links connect the top-ranked TF from each adjacent module.
 }
