@@ -789,6 +789,14 @@ plot_umap_gene_modules_shiny_2 <- function(module_summaries,
 #' @param axis_text_size Font size used for row labels and annotations.
 #' @param discrete_colour_list Optional named list of discrete colour vectors.
 #' @param continuous_colors Optional vector of colors used for the heatmap body.
+#' @param show_pseudotime_legend Logical indicating whether to show the pseudotime
+#' legend. Defaults to FALSE.
+#' @param show_metadata_legend Logical indicating whether to show the metadata
+#' legend. Defaults to TRUE.
+#' @param show_modules_legend Logical indicating whether to show the gene family
+#' legend. Defaults to FALSE.
+#' @param show_expression_legend Logical indicating whether to show the expression
+#' legend. Defaults to TRUE.
 #'
 #' @return A `ComplexHeatmap` heatmap object.
 #' @export
@@ -802,7 +810,11 @@ generate_cell_heatmap <- function(expression_matrix,
                                   cap = 20,
                                   axis_text_size = 10,
                                   discrete_colour_list = NULL,
-                                  continuous_colors = NULL) {
+                                  continuous_colors = NULL,
+                                  show_pseudotime_legend = FALSE,
+                                  show_metadata_legend = TRUE,
+                                  show_modules_legend = FALSE,
+                                  show_expression_legend = TRUE) {
     if (is.null(metadata_name) || !(metadata_name %in% colnames(metadata_df))) {
         metadata_name <- colnames(metadata_df)[1]
     }
@@ -887,7 +899,7 @@ generate_cell_heatmap <- function(expression_matrix,
         col = list(
             modules = cols
         ),
-        show_legend = TRUE,
+        show_legend = show_modules_legend,
         show_annotation_name = FALSE
     )
 
@@ -913,12 +925,13 @@ generate_cell_heatmap <- function(expression_matrix,
         col_list[[metadata_name]] <- mtd_cols
 
         arg_list$"pseudotime" <- psd
+        arg_list$"show_legend" <- c(metadata_name = show_metadata_legend, pseudotime = show_pseudotime_legend)
     } else {
         col_list <- list()
         col_list[[metadata_name]] <- mtd_cols
+        arg_list$"show_legend" <- c(metadata_name = show_metadata_legend)
     }
     arg_list$"col" <- col_list
-    arg_list$"show_legend" <- TRUE
     arg_list$"show_annotation_name" <- TRUE
     arg_list$"annotation_name_side" <- "left"
 
@@ -945,7 +958,7 @@ generate_cell_heatmap <- function(expression_matrix,
         col = continuous_colors,
         bottom_annotation = bottom_ha,
         left_annotation = left_ha,
-        show_heatmap_legend = TRUE,
+        show_heatmap_legend = show_expression_legend,
         heatmap_legend_param = list(
             direction = "vertical",
             legend_width = grid::unit(5, "cm")
