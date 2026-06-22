@@ -75,7 +75,7 @@ DimPlot(pbmc3k, reduction = "umap", group.by = "seurat_annotations")
 ```
 
 # Running Starlng
-## Trajectory Inference and Autocorrelation Scoring
+## Trajectory Inference
 
 Starlng relies on the main principles from the Monocle3 package. Therefore, the
 first steps consist in converting our object to Monocle3 and apply the first
@@ -779,7 +779,8 @@ hub_genes <- hub_score_df %>%
 print(hub_genes)
 ```
 
-We showcase the position of the top genes on the gene UMAP. In the following plot,
+We showcase the position of the top genes on the gene UMAP, using a visualisation
+approach similar to the one presented in `hdWGCNA`. In the following plot,
 only the top 10% of the edges (ordered by their weights) are shown. Edges between
 modules that are not neighbours are discarded.
 ```{r gene_umap_hubs, fig.width = 8, fig.height = 6}

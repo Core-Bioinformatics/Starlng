@@ -2,7 +2,7 @@
 title: "Generating the Starlng Shiny Application on single-cell data"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Generating the Starlng Shiny App on single-cell data}
+  %\VignetteIndexEntry{Generating the Starlng Shiny Application on single-cell data}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
