@@ -11,11 +11,14 @@ plot_gene_hub_umap(
   edge_alpha = 0.5,
   edge_colour = "#bbbbbb",
   point_size = 2,
+  point_alpha = 0.85,
   module_colours = NULL,
   node_text_size = 5,
   legend_text_size = 4,
   hub_point_scale = 2,
-  hub_stroke = 0.7
+  hub_stroke = 0.7,
+  label_box_alpha = 0.85,
+  label_box_stroke = 0.15
 )
 }
 \arguments{
@@ -31,6 +34,8 @@ plot_gene_hub_umap(
 
 \item{point_size}{Base point size.}
 
+\item{point_alpha}{Point transparency.}
+
 \item{module_colours}{Optional named vector of module colours.}
 
 \item{node_text_size}{Text size for hub labels.}
@@ -40,6 +45,10 @@ plot_gene_hub_umap(
 \item{hub_point_scale}{Size multiplier for hub genes.}
 
 \item{hub_stroke}{Stroke width for hub points.}
+
+\item{label_box_alpha}{Background transparency for hub labels.}
+
+\item{label_box_stroke}{Border width for hub label boxes.}
 }
 \value{
 A ggplot object.

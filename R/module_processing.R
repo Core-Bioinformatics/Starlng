@@ -1002,11 +1002,14 @@ get_filtered_gene_adjacency <- function(
 #' @param edge_alpha Edge transparency.
 #' @param edge_colour Default edge colour.
 #' @param point_size Base point size.
+#' @param point_alpha Point transparency.
 #' @param module_colours Optional named vector of module colours.
 #' @param node_text_size Text size for hub labels.
 #' @param legend_text_size Text size for legends.
 #' @param hub_point_scale Size multiplier for hub genes.
 #' @param hub_stroke Stroke width for hub points.
+#' @param label_box_alpha Background transparency for hub labels.
+#' @param label_box_stroke Border width for hub label boxes.
 #'
 #' @return A ggplot object.
 #' @export
@@ -1017,11 +1020,14 @@ plot_gene_hub_umap <- function(
     edge_alpha = 0.5,
     edge_colour = "#bbbbbb",
     point_size = 2,
+    point_alpha = 0.85,
     module_colours = NULL,
     node_text_size = 5,
     legend_text_size = 4,
     hub_point_scale = 2,
-    hub_stroke = 0.7
+    hub_stroke = 0.7,
+    label_box_alpha = 0.85,
+    label_box_stroke = 0.15
 ) {
     has_ggrepel <- requireNamespace("ggrepel", quietly = TRUE)
 
@@ -1060,7 +1066,7 @@ plot_gene_hub_umap <- function(
 
     gplot_obj <- ggplot2::ggplot() +
         ggplot2::geom_segment(data = filtered_gene_adj$edges_df, ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend, linewidth = .data$weight, color = .data$module_assigned), alpha = edge_alpha) +
-        ggplot2::geom_point(data = umap_df[!umap_df$is_hub, , drop = FALSE], ggplot2::aes(x = .data[[umap_columns[1]]], y = .data[[umap_columns[2]]], color = .data$module), size = point_size, alpha = 0.85) +
+        ggplot2::geom_point(data = umap_df[!umap_df$is_hub, , drop = FALSE], ggplot2::aes(x = .data[[umap_columns[1]]], y = .data[[umap_columns[2]]], color = .data$module), size = point_size, alpha = point_alpha) +
         ggplot2::geom_point(data = hub_df, ggplot2::aes(x = .data[[umap_columns[1]]], y = .data[[umap_columns[2]]], color = .data$module), size = point_size * hub_point_scale, shape = 21, stroke = hub_stroke, fill = "white") +
         ggplot2::scale_color_manual(values = module_colours) +
         ggplot2::scale_linewidth_continuous(range = edge_weight_range) +
@@ -1079,8 +1085,8 @@ plot_gene_hub_umap <- function(
                     data = hub_df,
                     ggplot2::aes(x = .data[[umap_columns[1]]], y = .data[[umap_columns[2]]], label = .data$gene, color = .data$module),
                     size = node_text_size,
-                    fill = ggplot2::alpha("white", 0.85),
-                    label.size = 0.15,
+                    fill = ggplot2::alpha("white", label_box_alpha),
+                    label.size = label_box_stroke,
                     fontface = "bold",
                     max.overlaps = Inf,
                     box.padding = 0.3,
