@@ -1,10 +1,10 @@
-.gitignore
+^\.gitignore$
 ^Starlng\.Rproj$
 ^\.Rproj\.user$
 ^test.*\.R$
-^paper$
-LICENSE.md
-^docs$
+^paper($|/)
+^LICENSE\.md$
+^docs($|/)
 ^_pkgdown\.yml$
 ^pkgdown$
 ^\.github$
