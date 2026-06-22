@@ -1086,7 +1086,6 @@ server_gene_hub_scores <- function(id) {
                             "gene_hub_scores.csv"
                         },
                         content = function(file) {
-                            score_df <- env$gene_hub_scores()
                             shiny::req(score_df, nrow(score_df) > 0)
                             utils::write.table(score_df, file, sep = ",", quote = FALSE, row.names = TRUE)
                         }
