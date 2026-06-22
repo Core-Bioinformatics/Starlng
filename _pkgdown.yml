@@ -1,0 +1,85 @@
+template:
+  light-switch: true
+  bootstrap: 5
+navbar:
+  structure:
+    left: [intro, reference, articles, news, tutorials]
+    right: [search, github, lightswitch]
+url: https://core-bioinformatics.github.io/Starlng/
+reference:
+- title: Shiny Write Utilities
+- contents:
+  - starts_with("starlng_write_app")
+- title: Shiny App Components
+- contents:
+  - starts_with("ui_")
+  - starts_with("server_")
+  - prepare_session
+  - update_gears_width
+  - update_tabs
+- title: Gene/Cell Utilities
+- contents:
+  - filter_central_cells_from_group
+  - remove_outlier_cells
+  - select_cells_by_gene_expr
+  - select_cells_by_metadata
+  - calculate_umap_average_distance
+  - voting_scheme
+  - read_gene_from_dense_h5
+  - sort_genes_by_metadata
+  - starts_with("write_gene_matrix")
+  - plot_umap
+- title: Monocle3 Utilities
+- contents:
+  - diet_monocle_object
+  - subset_monocle_by_trajectory
+  - update_monocle_partition
+- title: Pseudotime Utilities
+- contents:
+  - custom_learn_graph
+  - get_trajectory_object
+  - plot_trajectory_graph
+  - custom_pseudotime_ordering
+  - get_pseudotime_recommendation
+  - order_metadata_groups_by_pseudotime
+- title: Stability Utilities
+- contents:
+  - clustering_pipeline
+  - community_detection_master
+  - get_clusters_consistency
+  - get_feature_loading
+  - group_by_clusters_general
+  - parallel_nn2_idx
+  - pca_reduction
+  - select_best_configuration
+- title: Module Processing
+- contents:
+  - build_module_masks
+  - compute_module_pairwise_tables
+  - detect_outlier
+  - get_closest_node_to_module
+  - get_filtered_gene_adjacency
+  - get_module_centroid
+  - get_module_stats
+  - get_module_transitions
+  - plot_module_transitions
+  - summarise_module_stats
+  - get_per_module_weight
+  - get_gene_overlap_stat
+  - plot_umap_gene_modules
+  - plot_module_pseudobulk_expression
+  - generate_cell_heatmap
+  - plot_gene_hub_umap
+  - plot_module_trends_over_pseudotime
+- title: Enrichment Analysis
+- contents:
+  - filter_enrichment_results
+  - plot_enrichment_top_terms
+- title: TF Analysis
+- contents:
+  - get_transcription_factors
+  - get_tf_stats
+  - add_tf_hub_stats
+  - get_tf_gene_network
+  - plot_module_tfs_ggraph
+  - plot_module_tfs_bubbleplot
