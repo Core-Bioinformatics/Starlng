@@ -63,12 +63,15 @@ Suggests:
     ggraph,
     ggrepel,
     irlba,
+    knitr,
     mgcv,
+    rmarkdown,
     testthat (>= 3.0.0),
     parallel,
     plotly,
     SeuratData,
     SharedObject
+VignetteBuilder: knitr
 URL: https://github.com/Core-Bioinformatics/Starlng, https://core-bioinformatics.github.io/Starlng
 BugReports: https://github.com/Core-Bioinformatics/Starlng/issues
 Config/testthat/edition: 3
