@@ -63,7 +63,11 @@ optionally ordered by pseudotime and annotated by metadata.</p>
 <span>  cap <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  axis_text_size <span class="op">=</span> <span class="fl">10</span>,</span>
 <span>  discrete_colour_list <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  continuous_colors <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  continuous_colors <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  show_pseudotime_legend <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  show_metadata_legend <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  show_modules_legend <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  show_expression_legend <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -115,6 +119,26 @@ cells before plotting.</p></dd>
 
 <dt id="arg-continuous-colors">continuous_colors<a class="anchor" aria-label="anchor" href="#arg-continuous-colors"></a></dt>
 <dd><p>Optional vector of colors used for the heatmap body.</p></dd>
+
+
+<dt id="arg-show-pseudotime-legend">show_pseudotime_legend<a class="anchor" aria-label="anchor" href="#arg-show-pseudotime-legend"></a></dt>
+<dd><p>Logical indicating whether to show the pseudotime
+legend. Defaults to FALSE.</p></dd>
+
+
+<dt id="arg-show-metadata-legend">show_metadata_legend<a class="anchor" aria-label="anchor" href="#arg-show-metadata-legend"></a></dt>
+<dd><p>Logical indicating whether to show the metadata
+legend. Defaults to TRUE.</p></dd>
+
+
+<dt id="arg-show-modules-legend">show_modules_legend<a class="anchor" aria-label="anchor" href="#arg-show-modules-legend"></a></dt>
+<dd><p>Logical indicating whether to show the gene family
+legend. Defaults to FALSE.</p></dd>
+
+
+<dt id="arg-show-expression-legend">show_expression_legend<a class="anchor" aria-label="anchor" href="#arg-show-expression-legend"></a></dt>
+<dd><p>Logical indicating whether to show the expression
+legend. Defaults to TRUE.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -157,7 +157,7 @@ annotations can be used to confirm the downstream analysis.</p>
 <h2 id="running-starlng">Running Starlng<a class="anchor" aria-label="anchor" href="#running-starlng"></a>
 </h2>
 <div class="section level3">
-<h3 id="trajectory-inference-and-autocorrelation-scoring">Trajectory Inference and Autocorrelation Scoring<a class="anchor" aria-label="anchor" href="#trajectory-inference-and-autocorrelation-scoring"></a>
+<h3 id="trajectory-inference">Trajectory Inference<a class="anchor" aria-label="anchor" href="#trajectory-inference"></a>
 </h3>
 <p>Starlng relies on the main principles from the Monocle3 package.
 Therefore, the first steps consist in converting our object to Monocle3
@@ -266,8 +266,8 @@ most appropriate starting point.</p>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">recommended_pseudotime</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">## List of 3</span></span>
-<span><span class="co">##  $ recommended_mtd_name  : chr "seurat_annotations"</span></span>
-<span><span class="co">##  $ recommended_mtd_group : chr "CD14+ Mono"</span></span>
+<span><span class="co">##  $ recommended_mtd_name  : chr "RNA_snn_res.1"</span></span>
+<span><span class="co">##  $ recommended_mtd_group : chr "2"</span></span>
 <span><span class="co">##  $ recommended_pseudotime: Named num [1:2401] 31.43482 16.81102 0.00627 32.076 18.75898 ...</span></span>
 <span><span class="co">##   ..- attr(*, "names")= chr [1:2401] "AAACATACAACCAC" "AAACATTGATCAGC" "AAACCGTGCTTCCG" "AAACCGTGTATGCG" ...</span></span></code></pre>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
@@ -964,10 +964,11 @@ module.</p>
 <span><span class="co">## <span style="color: #BCBCBC;">18</span>                0.357             0.370               0.364        0.927</span></span>
 <span><span class="co">## <span style="color: #BCBCBC;">19</span>                1                 0.492               0.660        0    </span></span>
 <span><span class="co">## <span style="color: #949494;"># ℹ 3 more variables: combined_score &lt;dbl&gt;, module &lt;int&gt;, gene &lt;chr&gt;</span></span></span></code></pre>
-<p>We showcase the position of the top genes on the gene UMAP. In the
-following plot, only the top 10% of the edges (ordered by their weights)
-are shown. Edges between modules that are not neighbours are
-discarded.</p>
+<p>We showcase the position of the top genes on the gene UMAP, using a
+visualisation approach similar to the one presented in
+<code>hdWGCNA</code>. In the following plot, only the top 10% of the
+edges (ordered by their weights) are shown. Edges between modules that
+are not neighbours are discarded.</p>
 <div class="sourceCode" id="cb54"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">filtered_gene_adj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get_filtered_gene_adjacency.html">get_filtered_gene_adjacency</a></span><span class="op">(</span></span>
 <span>  gene_modules <span class="op">=</span> <span class="va">module_list</span><span class="op">[</span><span class="va">selected_modules</span><span class="op">]</span>,</span>

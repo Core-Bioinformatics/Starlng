@@ -11,7 +11,10 @@ median UMAP distance and IQR pseudotime, so the best modules are evaluated
 first). A second round allows redundant modules to be labeled as non-redundant
 if they provide a significant percentage of new cells compared to the already
 covered population (by default, the threshold is the median F1 score of
-the non-redundant modules)."><meta property="og:description" content="Classifies modules as outliers, redundant, or valid based on
+the non-redundant modules). The third run removes redundancy for modules
+whose population either match 1 on 1, or are a subset of modules that are
+already non-redundant. By default, the overlap should be pretty high (95%)
+for the redundancy removal to happen."><meta property="og:description" content="Classifies modules as outliers, redundant, or valid based on
 pseudotime spread, UMAP distance and coverage heuristics. A module is
 classified as outlier if its IQR and UMAP distance have a MAD z-score greater
 than 3.5 in absolute value. Modules that fit in the 85% of the pseudotime
@@ -23,7 +26,10 @@ median UMAP distance and IQR pseudotime, so the best modules are evaluated
 first). A second round allows redundant modules to be labeled as non-redundant
 if they provide a significant percentage of new cells compared to the already
 covered population (by default, the threshold is the median F1 score of
-the non-redundant modules)."></head><body>
+the non-redundant modules). The third run removes redundancy for modules
+whose population either match 1 on 1, or are a subset of modules that are
+already non-redundant. By default, the overlap should be pretty high (95%)
+for the redundancy removal to happen."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -80,7 +86,10 @@ median UMAP distance and IQR pseudotime, so the best modules are evaluated
 first). A second round allows redundant modules to be labeled as non-redundant
 if they provide a significant percentage of new cells compared to the already
 covered population (by default, the threshold is the median F1 score of
-the non-redundant modules).</p>
+the non-redundant modules). The third run removes redundancy for modules
+whose population either match 1 on 1, or are a subset of modules that are
+already non-redundant. By default, the overlap should be pretty high (95%)
+for the redundancy removal to happen.</p>
     </div>
 
     <div class="section level2">
@@ -91,7 +100,8 @@ the non-redundant modules).</p>
 <span>  <span class="va">psd_value</span>,</span>
 <span>  thresh_psd_good <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  thresh_psd_bad <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  umap_dist_threshold <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  umap_dist_threshold <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  overlap_threshold <span class="op">=</span> <span class="fl">0.95</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -124,6 +134,12 @@ it will be set to the 85% quantile of the IQR pseudotime of the entire dataset.<
 
 <dt id="arg-umap-dist-threshold">umap_dist_threshold<a class="anchor" aria-label="anchor" href="#arg-umap-dist-threshold"></a></dt>
 <dd><p>Optional threshold for median UMAP distance.</p></dd>
+
+
+<dt id="arg-overlap-threshold">overlap_threshold<a class="anchor" aria-label="anchor" href="#arg-overlap-threshold"></a></dt>
+<dd><p>Overlap threshold that allows redundant modules
+to become non-redundant if most of their cells already belong to the
+population of an already non-redundant module.</p></dd>
 
 </dl></div>
     <div class="section level2">

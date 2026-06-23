@@ -66,7 +66,8 @@ uses LOESS smoothing.</p>
 <span>  axis_text_size <span class="op">=</span> <span class="fl">10</span>,</span>
 <span>  legend_text_size <span class="op">=</span> <span class="fl">10</span>,</span>
 <span>  label_size <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>  show_labels <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  show_labels <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  smooth_threshold_max <span class="op">=</span> <span class="fl">0.2</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -106,6 +107,11 @@ expression per cell.</p></dd>
 <dt id="arg-show-labels">show_labels<a class="anchor" aria-label="anchor" href="#arg-show-labels"></a></dt>
 <dd><p>Logical indicating whether module labels are shown. The
 labels will be located at the maximum point of the smoothed trajectory.</p></dd>
+
+
+<dt id="arg-smooth-threshold-max">smooth_threshold_max<a class="anchor" aria-label="anchor" href="#arg-smooth-threshold-max"></a></dt>
+<dd><p>Threshold used to discard modules where the maximum
+value of the smoothed trajectory is below this value.</p></dd>
 
 </dl></div>
     <div class="section level2">
