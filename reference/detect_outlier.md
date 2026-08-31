@@ -1,0 +1,71 @@
+# Detect Module Outliers
+
+Classifies modules as outliers, redundant, or valid based on pseudotime
+spread, UMAP distance and coverage heuristics. A module is classified as
+outlier if its IQR and UMAP distance have a MAD z-score greater than 3.5
+in absolute value. Modules that fit in the 85% of the pseudotime IQR or
+the average UMAP distance of the baseline (the entire dataset) are
+considered outliers as well. Redundancy is based on the percentage of
+new cells covered by the module compared to the already covered cells
+(the modules are ordered based on their median UMAP distance and IQR
+pseudotime, so the best modules are evaluated first). A second round
+allows redundant modules to be labeled as non-redundant if they provide
+a significant percentage of new cells compared to the already covered
+population (by default, the threshold is the median F1 score of the
+non-redundant modules). The third run removes redundancy for modules
+whose population either match 1 on 1, or are a subset of modules that
+are already non-redundant. By default, the overlap should be pretty high
+(95%) for the redundancy removal to happen.
+
+## Usage
+
+``` r
+detect_outlier(
+  modules_stats,
+  cell_masks,
+  psd_value,
+  thresh_psd_good = NULL,
+  thresh_psd_bad = NULL,
+  umap_dist_threshold = NULL,
+  overlap_threshold = 0.95
+)
+```
+
+## Arguments
+
+- modules_stats:
+
+  A data frame of module summary statistics.
+
+- cell_masks:
+
+  A logical matrix of module-to-cell memberships.
+
+- psd_value:
+
+  A numeric pseudotime vector.
+
+- thresh_psd_good:
+
+  Threshold for accepting a module as non-redundant. If NULL, it will be
+  set to the 25% quantile of the IQR pseudotime of the non-outlier
+  modules.
+
+- thresh_psd_bad:
+
+  Threshold for flagging a module as an outlier. If NULL, it will be set
+  to the 85% quantile of the IQR pseudotime of the entire dataset.
+
+- umap_dist_threshold:
+
+  Optional threshold for median UMAP distance.
+
+- overlap_threshold:
+
+  Overlap threshold that allows redundant modules to become
+  non-redundant if most of their cells already belong to the population
+  of an already non-redundant module.
+
+## Value
+
+A list with outlier labels and coverage evolution data.

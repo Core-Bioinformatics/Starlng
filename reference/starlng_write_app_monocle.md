@@ -1,0 +1,208 @@
+# Create Starlng Shiny app from Monocle object
+
+Runs the entire Starlng pipeline on a Monocle object and generates a
+folder with all necessary files to run a Shiny app.
+
+## Usage
+
+``` r
+starlng_write_app_monocle(
+  folder_path,
+  monocle_object,
+  app_title_name = "",
+  learn_graph_parameters = list(nodes_per_log10_cells = 30, learn_graph_controls =
+    list(eps = 1e-05, maxiter = 100)),
+  gene_filtering_function = function(info_gene_df) {
+     rownames(info_gene_df %>%
+    dplyr::filter(.data$morans_I > 0.1, .data$q_value < 0.05))
+ },
+  clustering_parameters = list(n_neighbours = seq(from = 5, to = 50, by = 5), graph_type
+    = "snn", prune_value = -1, resolutions = list(RBConfigurationVertexPartition =
+    seq(from = 0.1, to = 2, by = 0.1), RBERVertexPartition = NULL,
+    ModularityVertexPartition = NULL), number_iterations = 5, number_repetitions = 100),
+  gene_umap_parameters = list(min_dist = 0.3, n_neighbors = 30, metric = "cosine",
+    n_components = 2),
+  ecc_threshold = 0.9,
+  freq_threshold = 30,
+  scale_threshold = 0.5,
+  enrichment_organism = "hsapiens",
+  skip_tf_identification = FALSE,
+  save_entire_monocle = TRUE,
+  discrete_colours = list(),
+  continuous_colours = list(),
+  max_n_colors = 40,
+  verbose = FALSE,
+  compression_level = 7,
+  chunk_size = 100,
+  nthreads = 1
+)
+```
+
+## Arguments
+
+- folder_path:
+
+  The path of the folder where the app will be saved.
+
+- monocle_object:
+
+  The monocle3 object that will be used as a starting point.
+
+- app_title_name:
+
+  The title of the shiny app.
+
+- learn_graph_parameters:
+
+  A list of parameters that will be passed to the `custom_learn_graph`
+  function. Possible options:
+
+  - `nodes_per_log10_cells` - the number of nodes per log10 cells. It is
+    used to influence the level of detail in the inferred trajectory.
+
+  - `learn_graph_controls` - a list of parameters that will be passed to
+    the `learn_graph` function of the monocle3 package. These parameters
+    are usually used to influence the convergence of the algorithm or
+    the pruning of the resulting trajectory.
+
+- gene_filtering_function:
+
+  A function that will be used to filter the genes that will be used in
+  the clustering analysis. The function should take only one parameter,
+  which is a data frame. The data frame will contain the following
+  columns:
+
+  - `morans_I` - the Moran's I value of the gene.
+
+  - `q_value` - the adjusted p-value of the gene being spatially
+    autocorrelated.
+
+  - `average_expression` - the average expression of the gene.
+
+  - `n_expressed_cells` - the number of cells that express the gene.
+
+  - `average_expression_nonzero` - the average expression of the gene in
+    cells that express it.
+
+  - `percent_expressed_cells` - the percentage of cells that express the
+    gene. The function should return a list of gene names that will be
+    considered to be the result of the filtering.
+
+- clustering_parameters:
+
+  A list of parameters that will be passed to the `clustering_pipeline`
+  function. Consult the documentation of the function for further
+  details.
+
+- gene_umap_parameters:
+
+  A list of parameters that will be passed to the
+  [`uwot::umap`](https://jlmelville.github.io/uwot/reference/umap.html)
+  function to generate the gene UMAP. Consult the documentation of the
+  function to obtain the list of parameters.
+
+- ecc_threshold:
+
+  The threshold applied on the Element-Centric Consistency (ECC) score
+  to determine if a number of cluster is stable or not. By default, it
+  is set to 0.9.
+
+- freq_threshold:
+
+  The threshold applied on the number of times a number of clusters is
+  obtained after running the `clustering_pipeline` function. By default,
+  it is set to 30.
+
+- scale_threshold:
+
+  The threshold applied on the scaled summarised expression to determine
+  the cell population associated to each gene module. By default, it is
+  set to 0.5.
+
+- enrichment_organism:
+
+  The organism used for the enrichment analysis.
+
+- skip_tf_identification:
+
+  If FALSE, performs enrichment analysis using `gprofiler2` to identify
+  transcription factors associated to each module.
+
+- save_entire_monocle:
+
+  If TRUE, saves the monocle object in the app folder. This object could
+  be used to perform additional changes to the app or to continue the
+  downstream analysis. If memory is a concern, set this parameter to
+  FALSE. Defaults to TRUE.
+
+- discrete_colours:
+
+  A list of colours that will be used to colour the groups from the
+  discrete metadata. The list should consist in an association between
+  the number of groups and a colour palette. For the missing number of
+  groups, the `qualpalr` package will be used. Defaults to an empty
+  list.
+
+- continuous_colours:
+
+  A list of colours that will be used to colour the continuous metadata
+  and the gene expression. The list should consist in an association
+  between the name of the colour palette and a list of colours. To this
+  list the following palettes will be automatically added: viridis,
+  plasam, white-red and blue-red. Defaults to an empty list.
+
+- max_n_colors:
+
+  The maximum number of colours used for discrete groups. Defaults to
+  40.
+
+- verbose:
+
+  If TRUE, prints intermediate progress messages of the pipeline.
+  Defaults to FALSE.
+
+- compression_level:
+
+  The compression level used to save the expression matrix in the HDF5
+  format. Defaults to 7.
+
+- chunk_size:
+
+  The chunk size used to store the expression matrix in the HDF5 format.
+  It is recommended to use values between 10 and 1000, as they might
+  improve the speed of reading the rows from the file. Defaults to 100.
+
+- nthreads:
+
+  The number of threads used to perform the calculations. This parameter
+  will be automatically passed to the `graph_test` function that will
+  calculate the Moran's I test. For the clustering pipeline, if no
+  parallel backend is already registered, the function will generate a
+  PSOCK cluster with the number of threads specified. Defaults to 1.
+
+## Value
+
+The function does not return anything, but it creates a folder which
+contains all necessary files to run the Starlng Shiny app.
+
+- `app.R` - the main file of the Shiny app.
+
+- `objects` - a folder that contains the following files:
+
+- `monocle_object.qs2` - the monocle object that was used to generate
+  the app.
+
+- `recommended_pseudotime.qs2` - the recommended pseudotime values.
+
+- `genes_info.csv` - a table with the gene information.
+
+- `trajectory_ggplot.qs2` - the ggplot object of the trajectory.
+
+- `metadata.qs2` - the metadata object.
+
+- `diet_monocle_object.qs2` - the monocle object with the diet
+  information.
+
+- `expression.h5` - the expression matrix in the HDF5 format.
+
+- `colours.qs2` - the colours object.

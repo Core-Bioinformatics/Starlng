@@ -1,0 +1,47 @@
+# Select the most stable configurations of parameters
+
+This function selects the most stable configuration of parameters using
+the overall ECC value. Firstly, it ranks the configurations based on the
+median and keep the upper half. Then it applies a second ranking based
+on the IQR and selects the configuration with the lowest IQR. The user
+can defined other functions, as long as they have the same monotonicity
+as the two functions mentioned above.
+
+## Usage
+
+``` r
+select_best_configuration(
+  grouped_by_k_list,
+  sep_char = ";",
+  first_ranking_function = stats::median,
+  second_ranking_function = function(x) {
+     stats::quantile(x, 0.75) -
+    stats::quantile(x, 0.25)
+ }
+)
+```
+
+## Arguments
+
+- grouped_by_k_list:
+
+  A nested list of configurations, where the last level contains the
+  list of partitions grouped by the number of clusters.
+
+- sep_char:
+
+  A character used to separate the configuration names.
+
+- first_ranking_function:
+
+  A function used to rank the configurations and eliminate the lower
+  half. The default is the median.
+
+- second_ranking_function:
+
+  A function used to rank the configurations and select the most stable
+  one. The default is the IQR.
+
+## Value
+
+A list of the parameters associated with the most stable configuration.

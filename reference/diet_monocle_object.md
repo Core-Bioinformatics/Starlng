@@ -1,0 +1,25 @@
+# Diet Monocle object
+
+This function simplifies the structure of the Monocle object. The
+purpose is to create a lightweight object that can be used in the
+context of the Shiny application. The resulting object will only contain
+the needed information to perform the pseudotime ordering. Therefore,
+this function removes information such as: the expression matrices, the
+auxiliary data related to the dimensionality reduction and the
+clustering and the metadata columns.
+
+## Usage
+
+``` r
+diet_monocle_object(mon_obj)
+```
+
+## Arguments
+
+- mon_obj:
+
+  Monocle object.
+
+## Value
+
+Diet Monocle object.

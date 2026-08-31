@@ -1,0 +1,92 @@
+# Community detection pipeline
+
+This function applies the PhenoGraph pipeline given an embedding matrix.
+The pipeline creates the exact nearest-neighbour graph using the RANN
+package, then applies the Leiden algorithm to find the clusters. The
+pipeline can be run multiple times while changing the random seed, to
+ensure the robustness of the resulting clusters.
+
+## Usage
+
+``` r
+clustering_pipeline(
+  embedding,
+  n_neighbours = seq(from = 5, to = 50, by = 5),
+  graph_type = "snn",
+  prune_value = -1,
+  resolutions = list(RBConfigurationVertexPartition = seq(from = 0.1, to = 2, by = 0.1),
+    RBERVertexPartition = NULL, ModularityVertexPartition = NULL),
+  number_iterations = 5,
+  seeds = NULL,
+  number_repetitions = 100,
+  merge_identical_partitions = TRUE,
+  memory_log_file = NULL
+)
+```
+
+## Arguments
+
+- embedding:
+
+  The embedding matrix where each row represents a point and each column
+  a dimension.
+
+- n_neighbours:
+
+  A vector of integers representing the number of number of neighbours
+  to be used to build the adjacency graph.
+
+- graph_type:
+
+  The type of graph. Can be either "nn" - directed unweighted graph or
+  "snn" - undirected weighted graph, where the weights are calculated
+  using the JSI score.
+
+- prune_value:
+
+  The value used to prune the edges of the graph. If the value is
+  negative, the function will determine the highest pruning value that
+  will keep the graph connected. Defaults to -1.
+
+- resolutions:
+
+  A list of vectors representing the resolution parameters used in the
+  community detection algorithm. Each name of the list is associated
+  with a quality function. The values of the list are the resolution
+  parameters to be used. The available choices in terms of quality
+  functions are "RBConfigurationVertexPartition", "RBERVertexPartition"
+  and "ModularityVertexPartition".
+
+- number_iterations:
+
+  How many iterations the Leiden algorithm should run. Defaults to 5.
+
+- seeds:
+
+  A vector of integers representing the random seeds to be used in the
+  community detection algorithm. If NULL, the function will generate the
+  seeds based on the number of repetitions. Defaults to NULL.
+
+- number_repetitions:
+
+  The number of repetitions the community detection pipeline should run.
+  Defaults to 100.
+
+- merge_identical_partitions:
+
+  Logical indicating if the function should merge the partitions that
+  are identical and group them by the number of clusters. Defaults to
+  TRUE.
+
+- memory_log_file:
+
+  The path to the file where the memory usage of the function should be
+  logged. Defaults to NULL.
+
+## Value
+
+A list of lists containing the clusters found for each combination of
+number of neighbours and quality functions. If
+`merge_identical_partitions` is set to TRUE, the last level will contain
+the partitions grouped by the number of clusters, alongside with their
+overall Element-Centric Consistency (ECC) score.
