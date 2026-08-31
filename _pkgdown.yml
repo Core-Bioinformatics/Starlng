@@ -1,15 +1,19 @@
-template:
-  light-switch: true
-  bootstrap: 5
 navbar:
   structure:
-    left: [intro, reference, articles, news, tutorials]
-    right: [search, github, lightswitch]
+    left:
+    - intro
+    - reference
+    - articles
+    - news
+    - tutorials
+    right:
+    - search
+    - github
+    - lightswitch
 url: https://core-bioinformatics.github.io/Starlng/
 reference:
 - title: Shiny Write Utilities
-- contents:
-  - starts_with("starlng_write_app")
+- contents: starts_with("starlng_write_app")
 - title: Shiny App Components
 - contents:
   - starts_with("ui_")
@@ -83,3 +87,7 @@ reference:
   - get_tf_gene_network
   - plot_module_tfs_ggraph
   - plot_module_tfs_bubbleplot
+template:
+  light-switch: yes
+  bootstrap: 5
+
