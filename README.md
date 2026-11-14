@@ -5,7 +5,9 @@
 [![](https://img.shields.io/github/languages/code-size/Core-Bioinformatics/Starlng.svg)](https://github.com/Core-Bioinformatics/Starlng)
 ![GitHub last commit (branch)](https://img.shields.io/github/last-commit/Core-Bioinformatics/Starlng/main?style=flat&color=white)
 [![](https://img.shields.io/github/r-package/v/Core-Bioinformatics/Starlng%2Fmain?label=devel%20version&color=green)](https://github.com/Core-Bioinformatics/Starlng/tree/main)
-[![](https://zenodo.org/badge/DOI/10.5281/zenodo.20821317.svg)](https://doi.org/10.5281/zenodo.20821317)
+[![ZENODO DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20821317.svg)](https://doi.org/10.5281/zenodo.20821317)
+[![Static Badge](https://img.shields.io/badge/DOI-10.1093%2Fbioinformatics%2Fbtag801-teal?style=plastic)](https://doi.org/10.1093/bioinformatics/btag801)
+
 
 <!-- [![CRAN status](https://www.r-pkg.org/badges/version/Starlng?color=orange)](https://CRAN.R-project.org/package=Starlng) -->
 
@@ -73,7 +75,7 @@ We suggest installing the following packages for optimal performance:
 * SharedObject
 
 ## Citing Starlng
-To be added.
+Munteanu, A. (2026). Starlng: STability Analysis of coRegulated ‘Nests’ of Genes. _Bioinformatics_, 42(11). https://doi.org/10.1093/bioinformatics/btag801
 
 ## References
 [1] J. Cao, M. Spielmann, X. Qiu, X. Huang, D. M. Ibrahim, A. J. Hill, F. Zhang, S. Mundlos, L. Christiansen, F. J. Steemers, C. Trapnell, and J. Shendure, “The single-cell transcriptional landscape of mammalian organogenesis,” Nature, vol. 566, p. 496–502, Feb. 2019.
